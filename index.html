@@ -1,0 +1,65 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wellness, The Hannam</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Cormorant+Garamond:ital,wght@1,600;1,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --brand-ivory: #F9F9F7;
+            --brand-deep-green: #1A3C34;
+            --brand-gold: #A58E6F;
+            --brand-charcoal: #2D2D2D;
+            --brand-border: #E8E8E4;
+        }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: var(--brand-ivory);
+            color: var(--brand-charcoal);
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            letter-spacing: -0.02em;
+        }
+        .font-serif-luxury {
+            font-family: 'Cormorant Garamond', serif;
+            font-style: italic;
+        }
+        ::-webkit-scrollbar {
+            width: 0px;
+        }
+        .page-transition {
+            animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .luxury-shadow {
+            box-shadow: 0 10px 30px -10px rgba(26, 60, 52, 0.08);
+        }
+        .card-rounded {
+            border-radius: 20px;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
+
+    "react-signature-canvas": "https://esm.sh/react-signature-canvas@^1.1.0-alpha.2"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
+</body>
+</html>

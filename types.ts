@@ -1,0 +1,175 @@
+
+export type Gender = '남성' | '여성';
+export type ContractType = 'NEW' | 'EXTENSION' | 'TOPUP';
+
+export interface Admin {
+  id: string;
+  email: string;
+  password?: string;
+  name: string;
+  phone: string;
+  role: 'SUPER' | 'STAFF';
+  isActive: boolean;
+  isDeleted: boolean;
+}
+
+export interface Member {
+  id: string;
+  name: string; 
+  birthDate: string;
+  gender: Gender;
+  phone: string;
+  email: string;
+  address?: string;
+  password?: string;
+  createdAt: string;
+  isDeleted: boolean;
+  confirmedNoticeIds?: string[];
+  initialPasswordSet: boolean;
+  adminMemo?: string; // 관리자 전용 상단 고정 메모
+}
+
+export interface Contract {
+  id: string;
+  memberId: string;
+  contractName: string;
+  contractAmount: number;
+  paymentMethod: string;
+  pdfData: string;
+  signatureData?: string;
+  contractImageFull?: string;
+  isChecklistConfirmed: boolean;
+  agreeTerms: boolean;
+  agreeRefund: boolean;
+  agreePrivacy: boolean;
+  agreeLegal: boolean;
+  date: string;
+  createdAt?: string;
+}
+
+export interface Manager {
+  id: string;
+  name: string;
+  phone: string;
+  memo: string;
+  isDeleted: boolean;
+  createdAt: string;
+}
+
+export interface MembershipProduct {
+  id: string;
+  name: string;
+  totalAmount: number;
+  bonusAmount: number;
+  validMonths: number;
+  tier: 'BASIC' | 'SILVER' | 'GOLD' | 'VVIP';
+  description: string;
+  defaultDiscountRate: number;
+}
+
+export interface ContractTemplate {
+  id: string;
+  name: string;
+  pdfData: string;
+}
+
+export interface Membership {
+  id: string;
+  memberId: string;
+  productId: string;
+  productName: string;
+  totalAmount: number;
+  usedAmount: number;
+  remainingAmount: number;
+  status: 'active' | 'expired';
+  expiryDate?: string; 
+  createdAt: string;
+}
+
+export interface Program {
+  id: string;
+  name: string;
+  category: 'BODY' | 'FACE' | 'SCALP' | 'SPA' | 'OTHER';
+  basePrice: number;
+  durationMinutes: number;
+  description: string;
+  isActive: boolean;
+  isDeleted: boolean;
+}
+
+export interface Notice {
+  id: string;
+  title: string;
+  content: string;
+  isPopup: boolean;
+  isAlertOn: boolean;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  imageUrl?: string;
+}
+
+export interface CareRecord {
+  id: string;
+  memberId: string;
+  membershipId: string;
+  programId: string;
+  managerId?: string;
+  reservationId?: string;
+  reservationTime?: string; // 추가: 예약 시간
+  balanceAfter?: number;     // 추가: 차감 후 잔액
+  originalPrice: number;
+  discountRate: number;
+  finalPrice: number;
+  noteSummary: string;
+  noteDetails: string;
+  noteFutureRef: string;
+  noteRecommendation: string;
+  signatureStatus: 'pending' | 'signed';
+  signatureData?: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface Reservation {
+  id: string;
+  date: string;
+  time: string;
+  memberId: string;
+  programId: string;
+  managerId?: string;
+  status: 'RESERVED' | 'COMPLETED' | 'CANCELLED';
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  memberId: string;
+  type: 'POPUP' | 'ALERT' | 'CARE_REPORT' | 'PUSH';
+  title: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+  sender?: string; // 발송자 기록용
+}
+
+export interface AuditLog {
+  id: string;
+  adminEmail: string;
+  action: string;
+  memberId: string | null;
+  field?: string;
+  oldValue?: string;
+  newValue?: string;
+  details: string;
+  createdAt: string;
+}
+
+export interface SystemBackup {
+  id: string;
+  adminEmail: string;
+  backupName: string;
+  backupData: any;
+  backupSize: number;
+  createdAt: string;
+}
