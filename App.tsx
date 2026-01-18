@@ -4,6 +4,7 @@ import LoginPage from './pages/auth/LoginPage';
 import AdminDashboard from './pages/admin/dashboard/AdminDashboard';
 import MemberPortal from './pages/member/MemberPortal';
 import AdminLayout from './components/AdminLayout';
+// Re-importing to ensure correct path resolution
 import MemberManagement from './pages/admin/membership/MemberManagement';
 import NoticeManagement from './pages/admin/system/NoticeManagement';
 import CareSessionPage from './pages/admin/care/CareSessionPage';
@@ -42,6 +43,7 @@ const App: React.FC = () => {
                 <Routes>
                   <Route index element={<AdminDashboard />} />
                   <Route path="members" element={<MemberManagement />} />
+                  <Route path="members/:memberId" element={<MemberManagement />} />
                   <Route path="records" element={<CareRecordManagement />} />
                   <Route path="notices" element={<NoticeManagement />} />
                   <Route path="care/:memberId" element={<CareSessionPage />} />

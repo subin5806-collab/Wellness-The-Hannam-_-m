@@ -15,18 +15,20 @@ export interface Admin {
 
 export interface Member {
   id: string;
-  name: string; 
+  name: string;
   birthDate: string;
   gender: Gender;
   phone: string;
   email: string;
   address?: string;
+  photoUrl?: string;
   password?: string;
   createdAt: string;
   isDeleted: boolean;
   confirmedNoticeIds?: string[];
   initialPasswordSet: boolean;
   adminMemo?: string; // 관리자 전용 상단 고정 메모
+  goal?: string; // 추가: 회원의 케어 목표
 }
 
 export interface Contract {
@@ -81,8 +83,9 @@ export interface Membership {
   totalAmount: number;
   usedAmount: number;
   remainingAmount: number;
+  defaultDiscountRate?: number; // 추가: 기본 할인율
   status: 'active' | 'expired';
-  expiryDate?: string; 
+  expiryDate?: string;
   createdAt: string;
 }
 
@@ -101,6 +104,7 @@ export interface Notice {
   id: string;
   title: string;
   content: string;
+  category: string;
   isPopup: boolean;
   isAlertOn: boolean;
   startDate: string;
@@ -125,8 +129,11 @@ export interface CareRecord {
   noteDetails: string;
   noteFutureRef: string;
   noteRecommendation: string;
-  signatureStatus: 'pending' | 'signed';
+  amountDeducted?: number;   // 추가: 정산 차감액
+  signImage?: string;        // 추가: 서명 이미지
+  signatureStatus: 'pending' | 'signed' | 'completed';
   signatureData?: string;
+  signedAt?: string; // 추가: 서명 일시
   date: string;
   createdAt: string;
 }

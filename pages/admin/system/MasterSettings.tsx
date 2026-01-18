@@ -16,6 +16,7 @@ const MasterSettings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [healthStatus, setHealthStatus] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -24,6 +25,7 @@ const MasterSettings: React.FC = () => {
   const [newProgram, setNewProgram] = useState<Partial<Program>>({ name: '', basePrice: 0, category: 'BODY', durationMinutes: 60, description: '' });
   const [newManager, setNewManager] = useState<Partial<Manager>>({ name: '', phone: '', memo: '' });
   const [loginPwdForm, setLoginPwdForm] = useState({ current: '', new: '', confirm: '', verificationCode: '' });
+  const [isVerified, setIsVerified] = useState(false);
 
   // Master Key Interlock
   const [showAuthModal, setShowAuthModal] = useState<{ open: boolean, onChevron: () => void }>({ open: false, onChevron: () => { } });
@@ -41,8 +43,8 @@ const MasterSettings: React.FC = () => {
     setNewProduct({ name: '', totalAmount: 0, tier: 'BASIC', bonusAmount: 0, validMonths: 12, defaultDiscountRate: 0, description: '' });
     setNewProgram({ name: '', basePrice: 0, category: 'BODY', durationMinutes: 60, description: '' });
     setNewManager({ name: '', phone: '', memo: '' });
-    setNewManager({ name: '', phone: '', memo: '' });
     setLoginPwdForm({ current: '', new: '', confirm: '', verificationCode: '' });
+    setIsVerified(false);
   };
 
   const checkAdminRole = async () => {
@@ -206,6 +208,24 @@ const MasterSettings: React.FC = () => {
     reader.readAsText(file);
   };
 
+  const runSystemHealthCheck = async () => {
+    setIsProcessing(true);
+    setHealthStatus('Checking system connectivity...');
+    try {
+      const result = await db.system.verifyConnection();
+      if (result.success) {
+        setHealthStatus(`✅ ${result.message}`);
+        setTimeout(() => setHealthStatus(null), 5000);
+      } else {
+        setHealthStatus(`❌ 오류: ${result.message}`);
+      }
+    } catch (e: any) {
+      setHealthStatus(`❌ 치명적 오류: ${e.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // --- Render Helpers ---
   const handleAuthConfirm = () => {
     if (authInput === MASTER_SEC_KEY) {
@@ -260,6 +280,15 @@ const MasterSettings: React.FC = () => {
     finally { setIsProcessing(false); }
   };
 
+
+  const handleSecurityCheck = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginPwdForm.verificationCode === '01058060134') {
+      setIsVerified(true);
+    } else {
+      alert('보안 인증 번호가 일치하지 않습니다.');
+    }
+  };
   // Fix: Implemented missing handleLoginPwdChange to resolve the error on line 378
   const handleLoginPwdChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,15 +324,21 @@ const MasterSettings: React.FC = () => {
       <header className="border-b pb-10 flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-[#2F3A32]">시스템 설정 센터</h1>
-          <p className="text-[11px] text-[#A58E6F] font-bold uppercase tracking-[0.4em] mt-2">Operational Integrity Hub</p>
+          <p className="text-[11px] text-[#A58E6F] font-bold uppercase tracking-[0.4em] mt-2">운영 무결성 관리 허브</p>
         </div>
       </header>
 
       <nav className="flex gap-4 border-b overflow-x-auto no-scrollbar">
-        {['MEMBERSHIP', 'CARE_PROGRAM', 'MANAGER', 'SECURITY', 'DATA_HUB'].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab as any)} className={`pb-4 px-8 text-[12px] font-bold uppercase tracking-widest relative whitespace-nowrap ${activeTab === tab ? 'text-[#2F3A32]' : 'text-slate-300 hover:text-slate-500'}`}>
-            {tab.replace('_', ' ')}
-            {activeTab === tab && <span className="absolute bottom-0 left-0 right-0 h-1 bg-[#2F3A32] rounded-full"></span>}
+        {[
+          { id: 'MEMBERSHIP', label: '멤버십 관리' },
+          { id: 'CARE_PROGRAM', label: '케어 프로그램' },
+          { id: 'MANAGER', label: '관리사 배정' },
+          { id: 'SECURITY', label: '보안 정책' },
+          { id: 'DATA_HUB', label: '데이터 허브' }
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`pb-4 px-8 text-[12px] font-bold uppercase tracking-widest relative whitespace-nowrap ${activeTab === tab.id ? 'text-[#2F3A32]' : 'text-slate-300 hover:text-slate-500'}`}>
+            {tab.label}
+            {activeTab === tab.id && <span className="absolute bottom-0 left-0 right-0 h-1 bg-[#2F3A32] rounded-full"></span>}
           </button>
         ))}
       </nav>
@@ -311,28 +346,95 @@ const MasterSettings: React.FC = () => {
       <div className="min-h-[600px]">
         {activeTab === 'MEMBERSHIP' && (
           <div className="grid grid-cols-12 gap-12 animate-in slide-in-from-right-4">
-            <form onSubmit={handleProductSubmit} className="col-span-4 bg-white p-10 rounded-[48px] border luxury-card space-y-6 h-fit">
-              <h4 className="text-xl font-bold text-[#2F3A32] font-serif italic mb-4">멤버십 상품 설정</h4>
-              <input required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold" placeholder="상품명" value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} />
-              <div className="grid grid-cols-2 gap-4">
-                <input type="number" required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold" placeholder="결제금액" value={newProduct.totalAmount} onChange={e => setNewProduct({ ...newProduct, totalAmount: +e.target.value })} />
-                <input type="number" className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold" placeholder="보너스금액" value={newProduct.bonusAmount} onChange={e => setNewProduct({ ...newProduct, bonusAmount: +e.target.value })} />
+            <form onSubmit={handleProductSubmit} className="col-span-4 bg-white p-10 rounded-[48px] border luxury-card space-y-6 h-fit sticky top-10">
+              <h4 className="text-xl font-bold text-[#2F3A32] font-serif italic mb-4">멤버십 상품 상세 설정</h4>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">상품명</label>
+                <input required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#2F3A32]" placeholder="Luxury VIP Care" value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} />
               </div>
-              <button type="submit" disabled={isProcessing} className="w-full py-5 bg-[#2F3A32] text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-xl">상품 저장</button>
-            </form>
-            <div className="col-span-8 space-y-4">
-              {membershipProducts.map(p => (
-                <div key={p.id} className="bg-white p-8 rounded-[32px] border luxury-shadow flex justify-between items-center group">
-                  <div>
-                    <h5 className="font-bold text-[#2F3A32] text-lg">{p.name} <span className="text-[10px] bg-slate-100 px-2 py-1 rounded ml-2 text-slate-400">{p.tier}</span></h5>
-                    <p className="text-sm text-[#A58E6F] font-bold mt-1">₩{p.totalAmount.toLocaleString()} ({p.validMonths}개월)</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => { setEditingId(p.id); setNewProduct(p); }} className="px-5 py-2.5 bg-slate-50 text-[10px] font-bold rounded-xl">Edit</button>
-                    <button onClick={() => handleDeleteItem(p.id, 'PRODUCT')} className="px-5 py-2.5 bg-rose-50 text-rose-400 text-[10px] font-bold rounded-xl">Del</button>
-                  </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">등급 (Tier)</label>
+                <select className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#2F3A32] appearance-none" value={newProduct.tier} onChange={e => setNewProduct({ ...newProduct, tier: e.target.value as any })}>
+                  <option value="BASIC">BASIC</option>
+                  <option value="GOLD">GOLD</option>
+                  <option value="PLATINUM">PLATINUM</option>
+                  <option value="DIAMOND">DIAMOND</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">판매 금액</label>
+                  <input type="number" required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#2F3A32]" placeholder="1000000" value={newProduct.totalAmount} onChange={e => setNewProduct({ ...newProduct, totalAmount: +e.target.value })} />
                 </div>
-              ))}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">보너스 (Credit)</label>
+                  <input type="number" className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#2F3A32]" placeholder="0" value={newProduct.bonusAmount} onChange={e => setNewProduct({ ...newProduct, bonusAmount: +e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">유효기간(개월)</label>
+                  <input type="number" required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#2F3A32]" value={newProduct.validMonths} onChange={e => setNewProduct({ ...newProduct, validMonths: +e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">기본 할인율(%)</label>
+                  <input type="number" className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#2F3A32]" value={newProduct.defaultDiscountRate || 0} onChange={e => setNewProduct({ ...newProduct, defaultDiscountRate: +e.target.value })} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">상품 설명 / 혜택</label>
+                <textarea
+                  className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#2F3A32] min-h-[100px] resize-none"
+                  placeholder="이 상품에 대한 상세 혜택이나 설명을 입력하세요."
+                  value={newProduct.description || ''}
+                  onChange={e => setNewProduct({ ...newProduct, description: e.target.value })}
+                />
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                {editingId && <button type="button" onClick={resetForms} className="flex-1 py-5 bg-slate-200 text-slate-500 rounded-2xl font-bold uppercase text-[11px] tracking-widest">취소</button>}
+                <button type="submit" disabled={isProcessing} className="flex-1 py-5 bg-[#2F3A32] text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-xl">{editingId ? '업데이트' : '신규 생성'}</button>
+              </div>
+            </form>
+
+            <div className="col-span-8 space-y-4">
+              {membershipProducts.length === 0 ? (
+                <div className="text-center py-20 bg-slate-50 rounded-[32px] border border-slate-100 border-dashed">
+                  <p className="text-slate-400 font-bold text-sm">등록된 멤버십 상품이 없습니다.</p>
+                  <p className="text-slate-300 text-[10px] mt-2">좌측 폼을 통해 새로운 상품을 등록해주세요.</p>
+                </div>
+              ) : (
+                membershipProducts.map(p => (
+                  <div key={p.id} className="bg-white p-8 rounded-[32px] border luxury-shadow flex justify-between items-start group hover:border-[#1A3C34] transition-all">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 rounded-lg text-[10px] font-bold tracking-widest uppercase ${p.tier === 'DIAMOND' ? 'bg-indigo-100 text-indigo-600' :
+                          p.tier === 'PLATINUM' ? 'bg-slate-200 text-slate-600' :
+                            p.tier === 'GOLD' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'
+                          }`}>{p.tier}</span>
+                        <h5 className="font-bold text-[#2F3A32] text-xl">{p.name}</h5>
+                      </div>
+                      <div className="flex gap-6 text-[12px] font-bold text-slate-500">
+                        <span>₩{p.totalAmount.toLocaleString()}</span>
+                        <span>•</span>
+                        <span>유효기간: {p.validMonths}개월</span>
+                        <span>•</span>
+                        <span>할인율: {p.defaultDiscountRate}%</span>
+                        {p.bonusAmount > 0 && <span className="text-emerald-500">• +₩{p.bonusAmount.toLocaleString()} Bonus</span>}
+                      </div>
+                      {p.description && <p className="text-sm text-slate-400 leading-relaxed max-w-xl">{p.description}</p>}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button onClick={() => { setEditingId(p.id); setNewProduct(p); }} className="px-5 py-3 bg-slate-50 text-[10px] font-bold rounded-xl hover:bg-slate-100 transition-colors">수정</button>
+                      <button onClick={() => handleDeleteItem(p.id, 'PRODUCT')} className="px-5 py-3 bg-rose-50 text-rose-400 text-[10px] font-bold rounded-xl hover:bg-rose-100 transition-colors">삭제</button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -353,8 +455,8 @@ const MasterSettings: React.FC = () => {
                 <div key={p.id} className="bg-white p-8 rounded-[32px] border luxury-shadow flex justify-between items-center">
                   <div><h5 className="font-bold text-[#2F3A32] text-lg">{p.name}</h5><p className="text-sm text-[#A58E6F] font-bold mt-1">₩{p.basePrice.toLocaleString()} ({p.durationMinutes}분)</p></div>
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditingId(p.id); setNewProgram(p); }} className="px-5 py-2.5 bg-slate-50 text-[10px] font-bold rounded-xl">Edit</button>
-                    <button onClick={() => handleDeleteItem(p.id, 'PROGRAM')} className="px-5 py-2.5 bg-rose-50 text-rose-400 text-[10px] font-bold rounded-xl">Del</button>
+                    <button onClick={() => { setEditingId(p.id); setNewProgram(p); }} className="px-5 py-2.5 bg-slate-50 text-[10px] font-bold rounded-xl">수정</button>
+                    <button onClick={() => handleDeleteItem(p.id, 'PROGRAM')} className="px-5 py-2.5 bg-rose-50 text-rose-400 text-[10px] font-bold rounded-xl">삭제</button>
                   </div>
                 </div>
               ))}
@@ -375,8 +477,8 @@ const MasterSettings: React.FC = () => {
                 <div key={m.id} className="bg-white p-8 rounded-[32px] border luxury-shadow flex justify-between items-center">
                   <div><h5 className="font-bold text-[#2F3A32] text-lg">{m.name}</h5><p className="text-sm text-slate-400 mt-1">{m.phone}</p></div>
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditingId(m.id); setNewManager(m); }} className="px-5 py-2.5 bg-slate-50 text-[10px] font-bold rounded-xl">Edit</button>
-                    <button onClick={() => handleDeleteItem(m.id, 'MANAGER')} className="px-5 py-2.5 bg-rose-50 text-rose-400 text-[10px] font-bold rounded-xl">Del</button>
+                    <button onClick={() => { setEditingId(m.id); setNewManager(m); }} className="px-5 py-2.5 bg-slate-50 text-[10px] font-bold rounded-xl">수정</button>
+                    <button onClick={() => handleDeleteItem(m.id, 'MANAGER')} className="px-5 py-2.5 bg-rose-50 text-rose-400 text-[10px] font-bold rounded-xl">삭제</button>
                   </div>
                 </div>
               ))}
@@ -390,8 +492,8 @@ const MasterSettings: React.FC = () => {
               {/* Header inside Hub */}
               <div className="flex justify-between items-start z-10">
                 <div>
-                  <h2 className="text-6xl font-serif-luxury italic font-bold text-white mb-4">Financial Migration Hub</h2>
-                  <p className="text-[#A58E6F] font-bold uppercase tracking-[0.4em] text-xs">Master-Verified Integrity Center</p>
+                  <h2 className="text-4xl font-serif-luxury italic font-bold text-white mb-4">데이터 마이그레이션 허브</h2>
+                  <p className="text-[#A58E6F] font-bold uppercase tracking-[0.4em] text-xs">최고 관리자 승인 필요</p>
                 </div>
                 <button
                   onClick={downloadTemplate}
@@ -409,7 +511,7 @@ const MasterSettings: React.FC = () => {
                   className="bg-white/5 border border-white/10 p-16 rounded-[56px] hover:bg-white/10 transition-all cursor-pointer group luxury-shadow"
                 >
                   <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center text-5xl mb-10 group-hover:scale-110 transition-transform">💾</div>
-                  <h4 className="text-3xl font-bold text-white mb-4">DB Master Backup</h4>
+                  <h4 className="text-3xl font-bold text-white mb-4">DB 전체 백업</h4>
                   <p className="text-sm text-white/40 leading-relaxed font-medium">전체 회원 및 이용 내역을 클라우드에 안전하게 백업합니다.</p>
                 </div>
 
@@ -429,6 +531,18 @@ const MasterSettings: React.FC = () => {
                     onChange={handleBulkUpload}
                   />
                 </div>
+              </div>
+
+              {/* System Health Check Trigger */}
+              <div className="mt-8 flex justify-end z-10 px-4">
+                <button
+                  onClick={runSystemHealthCheck}
+                  disabled={isProcessing}
+                  className="flex items-center gap-2 text-white/50 hover:text-white hover:underline text-[10px] font-bold uppercase tracking-widest transition-all"
+                >
+                  <span className={`w-2 h-2 rounded-full ${healthStatus?.includes('✅') ? 'bg-emerald-400' : healthStatus?.includes('❌') ? 'bg-rose-400' : 'bg-slate-500'}`}></span>
+                  {healthStatus || '시스템 연결 상태 점검 실행'}
+                </button>
               </div>
 
               {/* Decorative elements */}
@@ -476,20 +590,47 @@ const MasterSettings: React.FC = () => {
 
         {activeTab === 'SECURITY' && (
           <div className="bg-white p-16 rounded-[60px] border luxury-shadow animate-in slide-in-from-bottom-4">
-            <h3 className="text-3xl font-serif-luxury italic font-bold text-[#1A3C34] mb-12">Security Policy Management</h3>
+            <h3 className="text-3xl font-serif-luxury italic font-bold text-[#1A3C34] mb-12">보안 정책 관리</h3>
             <div className="grid grid-cols-2 gap-12">
               <div className="space-y-6">
-                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Update Login Key</h4>
-                <form onSubmit={(e) => { e.preventDefault(); handleLoginPwdChange(e); }} className="space-y-4">
-                  <input type="password" required placeholder="현재 비밀번호" className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl" value={loginPwdForm.current} onChange={e => setLoginPwdForm({ ...loginPwdForm, current: e.target.value })} />
-                  <input type="password" required placeholder="새 비밀번호" className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl" value={loginPwdForm.new} onChange={e => setLoginPwdForm({ ...loginPwdForm, new: e.target.value })} />
-                  <input type="password" required placeholder="새 비밀번호 확인" className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl" value={loginPwdForm.confirm} onChange={e => setLoginPwdForm({ ...loginPwdForm, confirm: e.target.value })} />
-                  <div className="pt-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2 mb-1 block">Security Code Verification</label>
-                    <input type="text" required placeholder="인증 번호 (예: 010...)" className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl" value={loginPwdForm.verificationCode} onChange={e => setLoginPwdForm({ ...loginPwdForm, verificationCode: e.target.value })} />
+                {!isVerified ? (
+                  <div className="animate-in fade-in slide-in-from-bottom-2">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Security Verification</h4>
+                    <form onSubmit={handleSecurityCheck} className="space-y-4">
+                      <p className="text-[11px] text-[#A58E6F] font-bold leading-relaxed mb-4">
+                        관리자 암호 변경을 위해 2단계 보안 인증이 필요합니다.<br />
+                        발급된 보안 코드를 입력해주세요.
+                      </p>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2 mb-1 block">Security Code</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="인증 번호 입력"
+                          className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl outline-none font-bold text-center tracking-widest"
+                          value={loginPwdForm.verificationCode}
+                          onChange={e => setLoginPwdForm({ ...loginPwdForm, verificationCode: e.target.value })}
+                        />
+                      </div>
+                      <button type="submit" className="w-full py-5 bg-[#1A3C34] text-white rounded-2xl font-bold uppercase tracking-widest text-[11px] shadow-lg hover:shadow-xl transition-all">
+                        Verify Identity (인증 확인)
+                      </button>
+                    </form>
                   </div>
-                  <button type="submit" className="w-full py-5 bg-[#2F3A32] text-white rounded-2xl font-bold uppercase tracking-widest text-[11px]">비밀번호 갱신</button>
-                </form>
+                ) : (
+                  <div className="animate-in fade-in slide-in-from-right-2">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Update Login Key</h4>
+                      <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-3 py-1 rounded-full">✓ Verified</span>
+                    </div>
+                    <form onSubmit={(e) => { e.preventDefault(); handleLoginPwdChange(e); }} className="space-y-4">
+                      <input type="password" required placeholder="현재 비밀번호" className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl" value={loginPwdForm.current} onChange={e => setLoginPwdForm({ ...loginPwdForm, current: e.target.value })} />
+                      <input type="password" required placeholder="새 비밀번호" className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl" value={loginPwdForm.new} onChange={e => setLoginPwdForm({ ...loginPwdForm, new: e.target.value })} />
+                      <input type="password" required placeholder="새 비밀번호 확인" className="w-full px-8 py-5 bg-[#F9FAFB] border rounded-2xl" value={loginPwdForm.confirm} onChange={e => setLoginPwdForm({ ...loginPwdForm, confirm: e.target.value })} />
+                      <button type="submit" className="w-full py-5 bg-[#2F3A32] text-white rounded-2xl font-bold uppercase tracking-widest text-[11px]">비밀번호 갱신</button>
+                    </form>
+                  </div>
+                )}
               </div>
               <div className="p-10 bg-slate-50 rounded-[44px] flex flex-col justify-center text-center space-y-4 border">
                 <p className="text-sm text-slate-500 font-medium italic">마스터 보안키는 암호화되어 안전하게 보관 중입니다.</p>
@@ -519,7 +660,7 @@ const MasterSettings: React.FC = () => {
                 onClick={handleAuthConfirm}
                 className="w-full py-6 bg-[#1A3C34] text-white rounded-[32px] font-bold uppercase tracking-[0.4em] shadow-2xl"
               >
-                Unlock & Proceed
+                보안 해제 및 진행
               </button>
             </div>
           </div>

@@ -1,12 +1,15 @@
-
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Wellness, The Hannam</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Cormorant+Garamond:ital,wght@1,600;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,600;1,700&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --brand-ivory: #F9F9F7;
@@ -15,36 +18,50 @@
             --brand-charcoal: #2D2D2D;
             --brand-border: #E8E8E4;
         }
+
         body {
-            font-family: 'Noto Sans KR', sans-serif;
+            font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
             background-color: var(--brand-ivory);
             color: var(--brand-charcoal);
             -webkit-font-smoothing: antialiased;
             overflow-x: hidden;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.01em;
         }
+
         .font-serif-luxury {
             font-family: 'Cormorant Garamond', serif;
             font-style: italic;
         }
+
         ::-webkit-scrollbar {
             width: 0px;
         }
+
         .page-transition {
             animation: fadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
         }
+
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
+
         .luxury-shadow {
             box-shadow: 0 10px 30px -10px rgba(26, 60, 52, 0.08);
         }
+
         .card-rounded {
             border-radius: 20px;
         }
     </style>
-<script type="importmap">
+    <script type="importmap">
 {
   "imports": {
     "react-router-dom": "https://esm.sh/react-router-dom@^7.11.0",
@@ -58,8 +75,10 @@
 }
 </script>
 </head>
+
 <body>
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
 </body>
+
 </html>

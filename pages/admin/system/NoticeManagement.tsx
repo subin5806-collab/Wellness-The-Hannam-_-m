@@ -1,48 +1,38 @@
-
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../db';
 import { Notice } from '../../../types';
 
 const NoticeManagement: React.FC = () => {
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const [newNotice, setNewNotice] = useState<{
-    title: string; content: string; isPopup: boolean; isAlertOn: boolean;
-    startDate: string; endDate: string; imageFile: File | null;
-  }>({
-    title: '', content: '', isPopup: false, isAlertOn: true,
+  const [form, setForm] = useState({
+    title: '',
+    content: '',
+    category: 'GENERAL',
+    isPopup: false,
     startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-    imageFile: null
+    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    imageUrl: ''
   });
 
-  useEffect(() => { fetchNotices(); }, []);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const fetchNotices = async () => {
-    setIsLoading(true);
-    try {
-      const res = await db.notices.getAll();
-      setNotices(res);
-    } catch (error: any) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
+  useEffect(() => {
+    loadNotices();
+  }, []);
+
+  const loadNotices = async () => {
+    const data = await db.notices.getAll();
+    setNotices(data);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setNewNotice({ ...newNotice, imageFile: file });
+    const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setPreviewUrl(reader.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setPreviewUrl(null);
+      if (file.size > 10 * 1024 * 1024) return alert('이미지 크기는 10MB 이하만 가능합니다.');
+      setSelectedFile(file);
     }
   };
 
@@ -50,153 +40,219 @@ const NoticeManagement: React.FC = () => {
     e.preventDefault();
     setIsProcessing(true);
     try {
-      let imageUrl = '';
-      if (newNotice.imageFile) {
-        const safeName = `notice_${Date.now()}_${newNotice.imageFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        imageUrl = await db.system.uploadFile('contracts', `notices/${safeName}`, newNotice.imageFile);
+      let finalImageUrl = form.imageUrl;
+
+      if (selectedFile) {
+        const path = `notices/${Date.now()}_${selectedFile.name}`;
+        finalImageUrl = await db.system.uploadFile('hannam', path, selectedFile);
       }
 
       await db.notices.add({
-        title: newNotice.title.trim(),
-        content: newNotice.content.trim(),
-        isPopup: newNotice.isPopup,
-        isAlertOn: newNotice.isAlertOn,
-        startDate: newNotice.startDate,
-        endDate: newNotice.endDate,
-        imageUrl: imageUrl
+        ...form,
+        imageUrl: finalImageUrl,
+        isAlertOn: true
       });
 
-      alert('공지사항이 정상적으로 배포되었습니다. 이제 사용자 화면에서 이미지를 확인하실 수 있습니다.');
+      alert('공지사항이 등록되었습니다.');
       setShowAddModal(false);
-      setPreviewUrl(null);
-      setNewNotice({
-        title: '', content: '', isPopup: false, isAlertOn: true,
+      setForm({
+        title: '',
+        content: '',
+        category: 'GENERAL',
+        isPopup: false,
         startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-        imageFile: null
+        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        imageUrl: ''
       });
-      await fetchNotices();
-    } catch (error: any) {
-      alert(`배포 중 오류 발생: ${error.message}`);
+      setSelectedFile(null);
+      loadNotices();
+    } catch (e: any) {
+      console.error(e);
+      alert('등록 중 오류 발생: ' + e.message);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('해당 공지를 삭제하시겠습니까?')) return;
+    if (!confirm('정말 삭제하시겠습니까?')) return;
     try {
       await db.notices.delete(id);
-      await fetchNotices();
-    } catch (e) {
-      alert('삭제 중 오류가 발생했습니다.');
+      loadNotices();
+    } catch (e: any) {
+      alert(e.message);
     }
   };
 
   return (
-    <div className="space-y-10 page-transition">
-      <header className="flex justify-between items-end border-b border-slate-100 pb-10">
+    <div className="w-full space-y-8 pb-32">
+      <header className="flex justify-between items-end border-b pb-10">
         <div>
-          <h2 className="text-3xl font-bold text-[#2F3A32]">공지 및 알림 제어</h2>
-          <p className="text-[11px] text-[#A58E6F] font-bold mt-2 uppercase tracking-[0.4em]">Announcement & Media Terminal</p>
+          <h2 className="text-4xl font-bold text-[#2F3A32]">공지 및 팝업 관리</h2>
+          <p className="text-[11px] text-[#A58E6F] font-bold mt-2 uppercase tracking-[0.5em]">Notification & Popup Control</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="bg-[#2F3A32] text-white px-10 py-4 rounded-2xl font-bold text-[13px] shadow-lg hover:bg-black transition-all active:scale-95 uppercase tracking-widest"
+          className="px-8 py-4 bg-[#2F3A32] text-white text-[12px] font-bold rounded-2xl hover:bg-[#1A3C34] transition-all uppercase tracking-widest shadow-lg flex items-center gap-2"
         >
-          + New Post
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+          신규 공지 등록
         </button>
       </header>
 
-      {isLoading ? (
-        <div className="py-24 text-center text-slate-300 font-bold animate-pulse tracking-widest uppercase">Fetching Data...</div>
-      ) : (
-        <div className="grid grid-cols-2 gap-10">
-          {notices.map(n => (
-            <div key={n.id} className="bg-white rounded-[40px] shadow-sm border border-[#E5E8EB] overflow-hidden hover:border-[#2F3A32] transition-all group flex flex-col">
-              {n.imageUrl && (
-                <div className="h-48 overflow-hidden bg-slate-100">
-                  <img src={n.imageUrl} alt={n.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                </div>
-              )}
-              <div className="p-10 space-y-5 flex-1 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    {n.isPopup && <span className="px-3 py-1 bg-[#2F3A32] text-white text-[9px] font-bold rounded-lg uppercase tracking-widest">Main Popup</span>}
-                    <h3 className="font-bold text-[#2F3A32] text-xl truncate">{n.title}</h3>
+      <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-[#F9FAFB] border-b text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+            <tr>
+              <th className="px-10 py-8">구분</th>
+              <th className="px-10 py-8">제목</th>
+              <th className="px-10 py-8">게시 기간</th>
+              <th className="px-10 py-8 text-center">팝업</th>
+              <th className="px-10 py-8 text-right">관리</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {notices.map(notice => (
+              <tr key={notice.id} className="hover:bg-slate-50/50 transition-colors">
+                <td className="px-10 py-8">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${notice.category === 'URGENT' ? 'bg-rose-50 text-rose-500' : 'bg-slate-100 text-slate-500'}`}>
+                    {notice.category}
+                  </span>
+                </td>
+                <td className="px-10 py-8">
+                  <div className="flex items-center gap-4">
+                    {notice.imageUrl && <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden border"><img src={notice.imageUrl} className="w-full h-full object-cover" /></div>}
+                    <div>
+                      <h4 className="font-bold text-[#2F3A32]">{notice.title}</h4>
+                      <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{notice.content}</p>
+                    </div>
                   </div>
-                  <p className="text-[14px] text-slate-500 leading-relaxed line-clamp-3 font-medium">{n.content}</p>
-                </div>
-                <div className="pt-8 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-6">
-                  <span className="tabular-nums">Term: {n.startDate} — {n.endDate}</span>
-                  <button onClick={() => handleDelete(n.id)} className="text-rose-300 hover:text-rose-500 transition-colors">Delete</button>
-                </div>
-              </div>
-            </div>
-          ))}
-          {notices.length === 0 && (
-            <div className="col-span-2 py-32 text-center text-slate-300 italic font-serif text-lg">
-              현재 등록된 공지사항이 없습니다.
-            </div>
-          )}
-        </div>
-      )}
+                </td>
+                <td className="px-10 py-8 text-[13px] font-medium text-slate-500 tabular-nums">
+                  {notice.startDate} ~ {notice.endDate}
+                </td>
+                <td className="px-10 py-8 text-center">
+                  {notice.isPopup ? (
+                    <span className="text-emerald-500 font-bold text-[10px] bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">ON</span>
+                  ) : <span className="text-slate-300 font-bold text-[10px]">OFF</span>}
+                </td>
+                <td className="px-10 py-8 text-right">
+                  <button onClick={() => handleDelete(notice.id)} className="text-rose-400 hover:text-rose-600 font-bold text-[11px] uppercase tracking-widest">Delete</button>
+                </td>
+              </tr>
+            ))}
+            {notices.length === 0 && (
+              <tr><td colSpan={5} className="py-24 text-center text-slate-300 italic">등록된 공지사항이 없습니다.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-8 z-[100]">
-          <div className="bg-white rounded-[56px] w-full max-w-2xl p-16 shadow-2xl relative animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto no-scrollbar">
-            <button type="button" onClick={() => setShowAddModal(false)} className="absolute top-12 right-12 text-3xl text-slate-200 hover:text-[#2F3A32]">×</button>
-            <h3 className="text-3xl font-bold text-[#2F3A32] mb-12 font-serif italic tracking-tight uppercase">New Announcement</h3>
-
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-[#A58E6F] uppercase tracking-widest ml-4">Title</label>
-                <input required className="w-full px-10 py-5 bg-[#F9FAFB] border border-slate-100 rounded-[28px] outline-none font-bold" placeholder="공지 제목을 입력해 주세요" value={newNotice.title} onChange={e => setNewNotice({ ...newNotice, title: e.target.value })} />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[2000] flex items-center justify-center p-8">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <header className="px-10 py-8 border-b flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h3 className="text-2xl font-bold text-[#2F3A32]">공지사항 등록</h3>
+                <p className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest mt-1">Register New Announcement</p>
               </div>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-[#2F3A32]"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+            </header>
 
-              <div className="flex gap-8 px-4">
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <input type="checkbox" className="w-5 h-5 accent-[#2F3A32]" checked={newNotice.isPopup} onChange={e => setNewNotice({ ...newNotice, isPopup: e.target.checked })} />
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest group-hover:text-[#2F3A32]">메인 팝업 노출</span>
-                </label>
-                <label className="flex items-center gap-3 cursor-pointer group">
-                  <input type="checkbox" className="w-5 h-5 accent-[#2F3A32]" checked={newNotice.isAlertOn} onChange={e => setNewNotice({ ...newNotice, isAlertOn: e.target.checked })} />
-                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest group-hover:text-[#2F3A32]">상단 알림바 표시</span>
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
+            <form onSubmit={handleSubmit} className="p-10 space-y-8">
+              <div className="grid grid-cols-2 gap-8">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">Start Date</label>
-                  <input type="date" required className="w-full px-10 py-5 bg-[#F9FAFB] border rounded-[28px] text-xs font-bold" value={newNotice.startDate} onChange={e => setNewNotice({ ...newNotice, startDate: e.target.value })} />
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">제목</label>
+                  <input
+                    className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold placeholder:font-normal"
+                    placeholder="제목을 입력하세요"
+                    value={form.title}
+                    onChange={e => setForm({ ...form, title: e.target.value })}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">End Date</label>
-                  <input type="date" required className="w-full px-10 py-5 bg-[#F9FAFB] border rounded-[28px] text-xs font-bold" value={newNotice.endDate} onChange={e => setNewNotice({ ...newNotice, endDate: e.target.value })} />
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">카테고리</label>
+                  <select
+                    className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold"
+                    value={form.category}
+                    onChange={e => setForm({ ...form, category: e.target.value })}
+                  >
+                    <option value="GENERAL">일반 공지</option>
+                    <option value="PRODUCT">신규 상품 안내</option>
+                    <option value="URGENT">긴급 공지</option>
+                    <option value="EVENT">이벤트/프로모션</option>
+                  </select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-[#A58E6F] uppercase tracking-widest ml-4">Image Attachment (Optional)</label>
-                <input type="file" accept="image/*" className="w-full px-10 py-4 bg-[#F9FAFB] border rounded-[28px] text-[12px] font-bold" onChange={handleFileChange} />
-                {previewUrl && (
-                  <div className="mt-4 rounded-2xl overflow-hidden border border-slate-200 shadow-sm max-h-40 flex items-center justify-center bg-slate-50">
-                    <img src={previewUrl} alt="Preview" className="h-full object-contain" />
-                  </div>
-                )}
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">내용</label>
+                <textarea
+                  className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-medium min-h-[140px] resize-none"
+                  placeholder="공지 내용을 상세히 입력하세요..."
+                  value={form.content}
+                  onChange={e => setForm({ ...form, content: e.target.value })}
+                  required
+                />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">Content Body</label>
-                <textarea required className="w-full px-10 py-6 bg-[#F9FAFB] border border-slate-100 rounded-[28px] h-48 outline-none leading-relaxed" placeholder="상세 공지 내용을 입력해 주세요" value={newNotice.content} onChange={e => setNewNotice({ ...newNotice, content: e.target.value })} />
+              <div className="grid grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">시작 일자</label>
+                  <input
+                    type="date"
+                    className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold"
+                    value={form.startDate}
+                    onChange={e => setForm({ ...form, startDate: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">종료 일자</label>
+                  <input
+                    type="date"
+                    className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold"
+                    value={form.endDate}
+                    onChange={e => setForm({ ...form, endDate: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-6 bg-slate-50 border rounded-2xl">
+                <div className="space-y-0.5">
+                  <p className="text-[13px] font-bold text-[#2F3A32]">팝업 노출 활성화</p>
+                  <p className="text-[10px] text-slate-400 font-medium">체크 시 멤버 앱 접속 시 팝업으로 노출됩니다.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="w-6 h-6 border-slate-300 accent-[#1A3C34] rounded-lg cursor-pointer"
+                  checked={form.isPopup}
+                  onChange={e => setForm({ ...form, isPopup: e.target.checked })}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">이미지 첨부 (500x500 권장)</label>
+                <div className="flex items-center gap-4">
+                  <label className="flex-1 flex items-center justify-center gap-3 px-6 py-4 bg-white border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:border-[#A58E6F]/50 transition-all">
+                    <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 00-2 2z" /></svg>
+                    <span className="text-[13px] font-bold text-slate-400">{selectedFile ? selectedFile.name : '이미지 파일 선택 (Max 10MB)'}</span>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                  </label>
+                  {selectedFile && (
+                    <button type="button" onClick={() => setSelectedFile(null)} className="p-4 bg-slate-100 rounded-2xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all font-bold text-[11px]">X</button>
+                  )}
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={isProcessing}
-                className="w-full py-6 bg-[#2F3A32] text-white rounded-[32px] font-bold uppercase text-[11px] tracking-[0.4em] shadow-2xl transition-all active:scale-95 disabled:opacity-50"
+                className="w-full py-5 bg-[#2F3A32] text-white rounded-[20px] font-bold text-lg shadow-xl hover:bg-[#1A3C34] hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50"
               >
-                {isProcessing ? '배포 중...' : '공지사항 즉시 배포'}
+                {isProcessing ? '처리 중...' : '공지 및 팝업 저장하기'}
               </button>
             </form>
           </div>
