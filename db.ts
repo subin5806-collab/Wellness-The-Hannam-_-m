@@ -64,7 +64,8 @@ const FIELD_MAP: Record<string, string> = {
   'admin_email': 'adminEmail',
   'created_at': 'createdAt',
   'old_value': 'oldValue',
-  'new_value': 'newValue'
+  'new_value': 'newValue',
+  'admin_memo': 'memo'
 };
 
 const transformKeys = (obj: any, type: 'toCamel' | 'toSnake'): any => {
