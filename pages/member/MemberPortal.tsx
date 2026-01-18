@@ -223,10 +223,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                       </p>
                       <p className="text-[14px] font-bold text-[#1A1A1A]">{currentDiscountRate}% OFF</p>
                     </div>
-                    <div className="col-span-2 mt-4 pt-6 border-t border-slate-50 text-center">
-                      <p className="text-[9px] text-slate-300 font-bold uppercase tracking-[0.2em] mb-2">Primary Care Goal</p>
-                      <p className="text-[14px] font-bold text-[#1A1A1A] uppercase tracking-[-0.02em] leading-tight max-w-[80%] mx-auto">{member.goal || "Deep Tissue Care"}</p>
-                    </div>
+
                   </div>
                 </div>
               </section>
@@ -516,18 +513,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                     <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Core Insight</label>
                     <p className="text-[16px] font-bold text-[#1A3C34] leading-relaxed italic border-l-4 border-[#A58E6F] pl-6">"{selectedRecord.noteSummary}"</p>
                   </div>
-                  {selectedRecord.noteDetails && (
-                    <div className="space-y-4">
-                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Care Details</label>
-                      <p className="text-[14px] text-slate-600 leading-relaxed font-medium">{selectedRecord.noteDetails}</p>
-                    </div>
-                  )}
-                  {selectedRecord.noteRecommendation && (
-                    <div className="space-y-4 pt-8 border-t border-slate-50">
-                      <label className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest block">Future Recommendations</label>
-                      <p className="text-[14px] text-slate-600 leading-relaxed font-medium bg-[#FDFCFB] p-6 rounded-[28px] border border-[#F1EEE9]">{selectedRecord.noteRecommendation}</p>
-                    </div>
-                  )}
+
                   <div className="pt-8 border-t border-slate-50 space-y-4">
                     <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Certification</label>
                     <div className="w-full aspect-[2/1] bg-slate-50 rounded-[32px] flex items-center justify-center border border-slate-100 p-8 shadow-inner">

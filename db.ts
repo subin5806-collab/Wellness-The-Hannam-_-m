@@ -232,24 +232,45 @@ export const db = {
       return count || 0;
     },
     completeCareSession: async (record: any) => {
-      // [MODIFIED] Client-side Transaction (RPC requires UUIDs, but ProgramID is text)
-      // 1. Check Balance & Deduct
+      // [hardened] Client-side Transaction with Integrity Check
+      // 1. Check Balance & Integrity
       const { data: memberMs, error: msFetchError } = await supabase
         .from('hannam_memberships')
-        .select('remaining_amount, used_amount')
+        .select('total_amount, remaining_amount, used_amount')
         .eq('id', record.membershipId)
         .single();
 
       if (msFetchError || !memberMs) throw new Error('멤버십 정보를 찾을 수 없습니다.');
-      if (memberMs.remaining_amount < record.finalPrice) throw new Error('잔액이 부족합니다.');
 
-      const newBalance = memberMs.remaining_amount - record.finalPrice;
+      // Data Integrity Check
+      const currentTotal = memberMs.total_amount;
+      const currentRemaining = memberMs.remaining_amount;
+      const currentUsed = memberMs.used_amount || 0;
+
+      // Warn if drift detected (but proceed with SAFE calculation based on Remaining)
+      // We assume 'Remaining' is the spendable truth, but we must fix 'Used' to match Total.
+      if (currentTotal !== (currentRemaining + currentUsed)) {
+        console.warn(`[Financial Integrity Warning] Membership ${record.membershipId} drift detected: Total(${currentTotal}) != Rem(${currentRemaining}) + Used(${currentUsed}).`);
+        // Note: We will calculate new states based on the operation, ensuring the NEW state is consistent relative to Total if possible, 
+        // or at least consistent with itself.
+      }
+
+      if (currentRemaining < record.finalPrice) throw new Error(`잔액이 부족합니다. (보유: ${currentRemaining.toLocaleString()}원, 필요: ${record.finalPrice.toLocaleString()}원)`);
+
+      const newRemaining = currentRemaining - record.finalPrice;
+      const newUsed = currentUsed + record.finalPrice;
+
+      // Double-check the NEW state consistency roughly (might still be off if it was off before, but we ensure the DELTA is correct)
+      // Ideally, we could enforce: newUsed = currentTotal - newRemaining; to auto-heal 'Used'.
+      // Let's do that to fix the 'Calculation Mess'.
+      // [AUTO-HEAL STRATEGY]: Trust Total and New Remaining. Recalculate Used.
+      const healedUsed = currentTotal - newRemaining;
 
       const { error: updateError } = await supabase
         .from('hannam_memberships')
         .update({
-          remaining_amount: newBalance,
-          used_amount: (memberMs.used_amount || 0) + record.finalPrice
+          remaining_amount: newRemaining,
+          used_amount: healedUsed // Enforce Result Consistency
         })
         .eq('id', record.membershipId);
 
@@ -265,7 +286,7 @@ export const db = {
         originalPrice: record.originalPrice,
         discountRate: record.discountRate,
         finalPrice: record.finalPrice,
-        balanceAfter: newBalance,
+        balanceAfter: newRemaining,
         noteSummary: record.noteSummary,
         noteDetails: record.noteDetails,
         noteFutureRef: record.noteFutureRef,
