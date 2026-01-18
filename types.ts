@@ -53,7 +53,7 @@ export interface Manager {
   id: string;
   name: string;
   phone: string;
-  memo: string;
+  adminMemo: string;
   isDeleted: boolean;
   createdAt: string;
 }

@@ -64,8 +64,7 @@ const FIELD_MAP: Record<string, string> = {
   'admin_email': 'adminEmail',
   'created_at': 'createdAt',
   'old_value': 'oldValue',
-  'new_value': 'newValue',
-  'admin_memo': 'memo'
+  'new_value': 'newValue'
 };
 
 const transformKeys = (obj: any, type: 'toCamel' | 'toSnake'): any => {
@@ -363,20 +362,12 @@ export const db = {
       return data;
     }
   },
-  if(error) {
-    console.error('>>> [DB] Signature Update Error:', error);
-    throw error;
-  }
 
-      console.log('>>> [DB] Signature Updated Successfully:', data);
-  return data;
-}
-  },
-reservations: {
-  getAll: async () => {
-    const { data } = await supabase.from('hannam_reservations').select('*').order('date', { ascending: true });
-    return transformKeys(data || [], 'toCamel') as Reservation[];
-  },
+  reservations: {
+    getAll: async () => {
+      const { data } = await supabase.from('hannam_reservations').select('*').order('date', { ascending: true });
+      return transformKeys(data || [], 'toCamel') as Reservation[];
+    },
     add: async (res: any) => {
       const { data, error } = await supabase.from('hannam_reservations').insert([transformKeys({
         id: `RES-${Date.now()}`,
@@ -387,86 +378,86 @@ reservations: {
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel');
     },
-      updateStatus: async (id: string, status: string) => {
-        await supabase.from('hannam_reservations').update({ status }).eq('id', id);
-      },
-        update: async (id: string, updates: any) => {
-          const { data, error } = await supabase.from('hannam_reservations').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
-          if (error) throw error;
-          return transformKeys(data?.[0], 'toCamel');
-        },
-          delete: async (id: string) => {
-            const { error } = await supabase.from('hannam_reservations').delete().eq('id', id);
-            if (error) throw error;
-          },
-            getByMemberId: async (memberId: string) => {
-              const { data } = await supabase.from('hannam_reservations').select('*').eq('member_id', memberId).order('date', { ascending: true });
-              return transformKeys(data || [], 'toCamel') as Reservation[];
-            },
-              getByDateRange: async (start: string, end: string) => {
-                const { data, error } = await supabase.from('hannam_reservations')
-                  .select('*')
-                  .gte('date', start)
-                  .lte('date', end)
-                  .order('date', { ascending: true })
-                  .order('time', { ascending: true });
-                if (error) throw error;
-                return transformKeys(data || [], 'toCamel') as Reservation[];
-              },
-                getDashboardStats: async () => {
-                  // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD)
-                  const now = new Date();
-                  const kstOffset = 9 * 60 * 60 * 1000;
-                  const kstNow = new Date(now.getTime() + kstOffset);
-                  const today = kstNow.toISOString().split('T')[0];
-                  const nowTime = kstNow.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
+    updateStatus: async (id: string, status: string) => {
+      await supabase.from('hannam_reservations').update({ status }).eq('id', id);
+    },
+    update: async (id: string, updates: any) => {
+      const { data, error } = await supabase.from('hannam_reservations').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
+      if (error) throw error;
+      return transformKeys(data?.[0], 'toCamel');
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase.from('hannam_reservations').delete().eq('id', id);
+      if (error) throw error;
+    },
+    getByMemberId: async (memberId: string) => {
+      const { data } = await supabase.from('hannam_reservations').select('*').eq('member_id', memberId).order('date', { ascending: true });
+      return transformKeys(data || [], 'toCamel') as Reservation[];
+    },
+    getByDateRange: async (start: string, end: string) => {
+      const { data, error } = await supabase.from('hannam_reservations')
+        .select('*')
+        .gte('date', start)
+        .lte('date', end)
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
+      if (error) throw error;
+      return transformKeys(data || [], 'toCamel') as Reservation[];
+    },
+    getDashboardStats: async () => {
+      // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD)
+      const now = new Date();
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const kstNow = new Date(now.getTime() + kstOffset);
+      const today = kstNow.toISOString().split('T')[0];
+      const nowTime = kstNow.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
 
-                  // 1. 오늘의 총 예약
-                  const { count: todayCount } = await supabase.from('hannam_reservations')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('date', today);
+      // 1. 오늘의 총 예약
+      const { count: todayCount } = await supabase.from('hannam_reservations')
+        .select('*', { count: 'exact', head: true })
+        .eq('date', today);
 
-                  // 2. 미정산 현황 (시작 시간이 지났지만 COMPLETED가 아닌 건수)
-                  const { count: unsettledCount } = await supabase.from('hannam_reservations')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('date', today)
-                    .lt('time', nowTime)
-                    .neq('status', 'COMPLETED');
+      // 2. 미정산 현황 (시작 시간이 지났지만 COMPLETED가 아닌 건수)
+      const { count: unsettledCount } = await supabase.from('hannam_reservations')
+        .select('*', { count: 'exact', head: true })
+        .eq('date', today)
+        .lt('time', nowTime)
+        .neq('status', 'COMPLETED');
 
-                  // 3. 잔액 부족 주의 (오늘 예약자 중 잔액 < 300,000인 회원 수)
-                  const { data: todayReservations } = await supabase.from('hannam_reservations')
-                    .select('member_id')
-                    .eq('date', today);
+      // 3. 잔액 부족 주의 (오늘 예약자 중 잔액 < 300,000인 회원 수)
+      const { data: todayReservations } = await supabase.from('hannam_reservations')
+        .select('member_id')
+        .eq('date', today);
 
-                  const uniqueMemberIds = Array.from(new Set(todayReservations?.map(r => r.member_id) || []));
+      const uniqueMemberIds = Array.from(new Set(todayReservations?.map(r => r.member_id) || []));
 
-                  let lowBalanceCount = 0;
-                  if (uniqueMemberIds.length > 0) {
-                    const { data: memberships } = await supabase.from('hannam_memberships')
-                      .select('member_id, remaining_amount')
-                      .in('member_id', uniqueMemberIds)
-                      .eq('status', 'active');
+      let lowBalanceCount = 0;
+      if (uniqueMemberIds.length > 0) {
+        const { data: memberships } = await supabase.from('hannam_memberships')
+          .select('member_id, remaining_amount')
+          .in('member_id', uniqueMemberIds)
+          .eq('status', 'active');
 
-                    const memberBalances: Record<string, number> = {};
-                    memberships?.forEach(ms => {
-                      memberBalances[ms.member_id] = (memberBalances[ms.member_id] || 0) + ms.remaining_amount;
-                    });
+        const memberBalances: Record<string, number> = {};
+        memberships?.forEach(ms => {
+          memberBalances[ms.member_id] = (memberBalances[ms.member_id] || 0) + ms.remaining_amount;
+        });
 
-                    lowBalanceCount = Object.values(memberBalances).filter(balance => balance < 300000).length;
-                  }
+        lowBalanceCount = Object.values(memberBalances).filter(balance => balance < 300000).length;
+      }
 
-                  return {
-                    todayTotal: todayCount || 0,
-                    lowBalance: lowBalanceCount,
-                    unsettled: unsettledCount || 0
-                  };
-                }
-},
-contracts: {
-  getAll: async () => {
-    const { data } = await supabase.from('hannam_contracts').select('*').order('date', { ascending: false });
-    return transformKeys(data || [], 'toCamel') as Contract[];
+      return {
+        todayTotal: todayCount || 0,
+        lowBalance: lowBalanceCount,
+        unsettled: unsettledCount || 0
+      };
+    }
   },
+  contracts: {
+    getAll: async () => {
+      const { data } = await supabase.from('hannam_contracts').select('*').order('date', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as Contract[];
+    },
     add: async (contract: any) => {
       const { data, error } = await supabase.from('hannam_contracts').insert([transformKeys({
         id: `CON-${Date.now()}`,
@@ -476,13 +467,13 @@ contracts: {
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel');
     }
-},
-master: {
-  programs: {
-    getAll: async () => {
-      const { data } = await supabase.from('hannam_programs').select('*').eq('is_deleted', false);
-      return transformKeys(data || [], 'toCamel') as Program[];
-    },
+  },
+  master: {
+    programs: {
+      getAll: async () => {
+        const { data } = await supabase.from('hannam_programs').select('*').eq('is_deleted', false);
+        return transformKeys(data || [], 'toCamel') as Program[];
+      },
       add: async (prog: any) => {
         const { data, error } = await supabase.from('hannam_programs').insert([transformKeys({
           id: `PROG-${Date.now()}`,
@@ -493,21 +484,21 @@ master: {
         if (error) throw error;
         return transformKeys(data?.[0], 'toCamel');
       },
-        update: async (id: string, updates: any) => {
-          const { data, error } = await supabase.from('hannam_programs').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
-          if (error) throw error;
-          return transformKeys(data?.[0], 'toCamel');
-        },
-          delete: async (id: string) => {
-            const { error } = await supabase.from('hannam_programs').update({ is_deleted: true }).eq('id', id);
-            if (error) throw error;
-          }
-  },
-  managers: {
-    getAll: async () => {
-      const { data } = await supabase.from('hannam_managers').select('*').eq('is_deleted', false);
-      return transformKeys(data || [], 'toCamel') as Manager[];
+      update: async (id: string, updates: any) => {
+        const { data, error } = await supabase.from('hannam_programs').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
+        if (error) throw error;
+        return transformKeys(data?.[0], 'toCamel');
+      },
+      delete: async (id: string) => {
+        const { error } = await supabase.from('hannam_programs').update({ is_deleted: true }).eq('id', id);
+        if (error) throw error;
+      }
     },
+    managers: {
+      getAll: async () => {
+        const { data } = await supabase.from('hannam_managers').select('*').eq('is_deleted', false);
+        return transformKeys(data || [], 'toCamel') as Manager[];
+      },
       add: async (mgr: any) => {
         const { data, error } = await supabase.from('hannam_managers').insert([transformKeys({
           id: `MGR-${Date.now()}`,
@@ -518,21 +509,21 @@ master: {
         if (error) throw error;
         return transformKeys(data?.[0], 'toCamel');
       },
-        update: async (id: string, updates: any) => {
-          const { data, error } = await supabase.from('hannam_managers').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
-          if (error) throw error;
-          return transformKeys(data?.[0], 'toCamel');
-        },
-          delete: async (id: string) => {
-            const { error } = await supabase.from('hannam_managers').update({ is_deleted: true }).eq('id', id);
-            if (error) throw error;
-          }
-  },
-  membershipProducts: {
-    getAll: async () => {
-      const { data } = await supabase.from('hannam_membership_products').select('*');
-      return transformKeys(data || [], 'toCamel') as MembershipProduct[];
+      update: async (id: string, updates: any) => {
+        const { data, error } = await supabase.from('hannam_managers').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
+        if (error) throw error;
+        return transformKeys(data?.[0], 'toCamel');
+      },
+      delete: async (id: string) => {
+        const { error } = await supabase.from('hannam_managers').update({ is_deleted: true }).eq('id', id);
+        if (error) throw error;
+      }
     },
+    membershipProducts: {
+      getAll: async () => {
+        const { data } = await supabase.from('hannam_membership_products').select('*');
+        return transformKeys(data || [], 'toCamel') as MembershipProduct[];
+      },
       add: async (prod: any) => {
         const { data, error } = await supabase.from('hannam_membership_products').insert([transformKeys({
           id: `PROD-${Date.now()}`,
@@ -541,52 +532,52 @@ master: {
         if (error) throw error;
         return transformKeys(data?.[0], 'toCamel');
       },
-        update: async (id: string, updates: any) => {
-          const { data, error } = await supabase.from('hannam_membership_products').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
-          if (error) throw error;
-          return transformKeys(data?.[0], 'toCamel');
-        },
-          delete: async (id: string) => {
-            const { error } = await supabase.from('hannam_membership_products').delete().eq('id', id);
-            if (error) throw error;
-          }
-  },
-  contractTemplates: {
-    getAll: async () => {
-      const { data } = await supabase.from('hannam_contract_templates').select('*');
-      return transformKeys(data || [], 'toCamel') as ContractTemplate[];
-    }
-  }
-},
-system: {
-  logAdminAction: async (action: string, memberId: string | null, details: string, field?: string, oldValue?: any, newValue?: any) => {
-    const saved = localStorage.getItem('hannam_auth_session');
-    const auth = saved ? JSON.parse(saved) : null;
-    const adminEmail = auth?.email || 'unknown';
-
-    // [SIMPLIFIED LOGIC] Direct Insert Only (No RPC)
-    // [TYPE CONSISTENCY] Always JSON.stringify old/new values to avoid mismatch with TEXT columns
-    const safeOldValue = (oldValue !== undefined && oldValue !== null) ? JSON.stringify(oldValue) : "{}";
-    const safeNewValue = (newValue !== undefined && newValue !== null) ? JSON.stringify(newValue) : "{}";
-
-    const { error: insertError } = await supabase.from('hannam_admin_action_logs').insert([{
-      // Let DB generate UUID: id is omitted
-      // id: `LOG-${Date.now()}`, 
-      admin_email: adminEmail,
-      action,
-      member_id: memberId,
-      target_member_id: memberId,
-      details,
-      field: field || 'none',
-      old_value: safeOldValue, // Sending as JSON String
-      new_value: safeNewValue, // Sending as JSON String
-      created_at: new Date().toISOString()
-    }]);
-
-    if (insertError) {
-      console.warn('Admin Logging Failed:', insertError);
+      update: async (id: string, updates: any) => {
+        const { data, error } = await supabase.from('hannam_membership_products').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
+        if (error) throw error;
+        return transformKeys(data?.[0], 'toCamel');
+      },
+      delete: async (id: string) => {
+        const { error } = await supabase.from('hannam_membership_products').delete().eq('id', id);
+        if (error) throw error;
+      }
+    },
+    contractTemplates: {
+      getAll: async () => {
+        const { data } = await supabase.from('hannam_contract_templates').select('*');
+        return transformKeys(data || [], 'toCamel') as ContractTemplate[];
+      }
     }
   },
+  system: {
+    logAdminAction: async (action: string, memberId: string | null, details: string, field?: string, oldValue?: any, newValue?: any) => {
+      const saved = localStorage.getItem('hannam_auth_session');
+      const auth = saved ? JSON.parse(saved) : null;
+      const adminEmail = auth?.email || 'unknown';
+
+      // [SIMPLIFIED LOGIC] Direct Insert Only (No RPC)
+      // [TYPE CONSISTENCY] Always JSON.stringify old/new values to avoid mismatch with TEXT columns
+      const safeOldValue = (oldValue !== undefined && oldValue !== null) ? JSON.stringify(oldValue) : "{}";
+      const safeNewValue = (newValue !== undefined && newValue !== null) ? JSON.stringify(newValue) : "{}";
+
+      const { error: insertError } = await supabase.from('hannam_admin_action_logs').insert([{
+        // Let DB generate UUID: id is omitted
+        // id: `LOG-${Date.now()}`, 
+        admin_email: adminEmail,
+        action,
+        member_id: memberId,
+        target_member_id: memberId,
+        details,
+        field: field || 'none',
+        old_value: safeOldValue, // Sending as JSON String
+        new_value: safeNewValue, // Sending as JSON String
+        created_at: new Date().toISOString()
+      }]);
+
+      if (insertError) {
+        console.warn('Admin Logging Failed:', insertError);
+      }
+    },
     getMemoHistory: async (memberId: string) => {
       const { data } = await supabase.from('hannam_admin_action_logs')
         .select('*')
@@ -595,28 +586,28 @@ system: {
         .order('created_at', { ascending: false });
       return transformKeys(data || [], 'toCamel') as AuditLog[];
     },
-      uploadFile: async (bucket: string, path: string, file: File) => {
-        const { error } = await supabase.storage.from(bucket).upload(path, file);
-        if (error) throw error;
-        const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
-        return publicUrl;
-      },
-        logEmail: async (log: any) => {
-          await supabase.from('hannam_email_logs').insert([transformKeys({
-            id: `EMAIL-${Date.now()}`,
-            ...log,
-            createdAt: new Date().toISOString()
-          }, 'toSnake')]);
-        },
-          getAuditLogsByMemberId: async (memberId: string) => {
-            const { data } = await supabase.from('hannam_admin_action_logs').select('*').eq('member_id', memberId).order('created_at', { ascending: false });
-            return transformKeys(data || [], 'toCamel') as AuditLog[];
-          },
-            backups: {
-    getAll: async () => {
-      const { data } = await supabase.from('hannam_system_backups').select('*').order('created_at', { ascending: false });
-      return transformKeys(data || [], 'toCamel') as SystemBackup[];
+    uploadFile: async (bucket: string, path: string, file: File) => {
+      const { error } = await supabase.storage.from(bucket).upload(path, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path);
+      return publicUrl;
     },
+    logEmail: async (log: any) => {
+      await supabase.from('hannam_email_logs').insert([transformKeys({
+        id: `EMAIL-${Date.now()}`,
+        ...log,
+        createdAt: new Date().toISOString()
+      }, 'toSnake')]);
+    },
+    getAuditLogsByMemberId: async (memberId: string) => {
+      const { data } = await supabase.from('hannam_admin_action_logs').select('*').eq('member_id', memberId).order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as AuditLog[];
+    },
+    backups: {
+      getAll: async () => {
+        const { data } = await supabase.from('hannam_system_backups').select('*').order('created_at', { ascending: false });
+        return transformKeys(data || [], 'toCamel') as SystemBackup[];
+      },
       add: async (backup: any) => {
         const saved = localStorage.getItem('hannam_auth_session');
         const auth = saved ? JSON.parse(saved) : null;
@@ -628,39 +619,39 @@ system: {
           createdAt: new Date().toISOString()
         }, 'toSnake')]);
       }
-  },
-  verifyConnection: async () => {
-    try {
-      // 1. Test Read
-      const { data: readData, error: readError } = await supabase.from('hannam_membership_products').select('count').limit(1).single();
-      if (readError && readError.code !== 'PGRST116') throw new Error(`Read Check Failed: ${readError.message}`);
+    },
+    verifyConnection: async () => {
+      try {
+        // 1. Test Read
+        const { data: readData, error: readError } = await supabase.from('hannam_membership_products').select('count').limit(1).single();
+        if (readError && readError.code !== 'PGRST116') throw new Error(`Read Check Failed: ${readError.message}`);
 
-      // 2. Test Write (Audit Log)
-      const testId = `TEST-${Date.now()}`;
-      await db.system.logAdminAction('SYSTEM_CHECK', null, 'Connection Verification', 'none', null, { check_id: testId });
+        // 2. Test Write (Audit Log)
+        const testId = `TEST-${Date.now()}`;
+        await db.system.logAdminAction('SYSTEM_CHECK', null, 'Connection Verification', 'none', null, { check_id: testId });
 
-      // 3. Test Delete (Cleanup)
-      const { error: deleteError } = await supabase.from('hannam_admin_action_logs').delete().eq('id', testId);
-      if (deleteError) throw new Error(`Delete Check Failed: ${deleteError.message}`);
+        // 3. Test Delete (Cleanup)
+        const { error: deleteError } = await supabase.from('hannam_admin_action_logs').delete().eq('id', testId);
+        if (deleteError) throw new Error(`Delete Check Failed: ${deleteError.message}`);
 
-      return { success: true, message: 'All systems operational (Read/Write/Delete confirmed)' };
-    } catch (e: any) {
-      console.error('System Check Error:', e);
-      return { success: false, message: e.message };
-    }
-  }
-},
-notices: {
-  getAll: async () => {
-    try {
-      const { data, error } = await supabase.from('hannam_notices').select('*').order('created_at', { ascending: false });
-      if (error) {
-        if (error.code === '42P01') return []; // Table not found
-        throw error;
+        return { success: true, message: 'All systems operational (Read/Write/Delete confirmed)' };
+      } catch (e: any) {
+        console.error('System Check Error:', e);
+        return { success: false, message: e.message };
       }
-      return transformKeys(data || [], 'toCamel') as Notice[];
-    } catch (e) { return []; }
+    }
   },
+  notices: {
+    getAll: async () => {
+      try {
+        const { data, error } = await supabase.from('hannam_notices').select('*').order('created_at', { ascending: false });
+        if (error) {
+          if (error.code === '42P01') return []; // Table not found
+          throw error;
+        }
+        return transformKeys(data || [], 'toCamel') as Notice[];
+      } catch (e) { return []; }
+    },
     add: async (notice: any) => {
       const { data, error } = await supabase.from('hannam_notices').insert([transformKeys({
         id: `NOTICE-${Date.now()}`,
@@ -670,50 +661,50 @@ notices: {
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel') as Notice;
     },
-      delete: async (id: string) => {
-        const { error } = await supabase.from('hannam_notices').delete().eq('id', id);
-        if (error) throw error;
-      },
-        getActiveNotices: async () => {
-          try {
-            const today = new Date().toISOString().split('T')[0];
-            const { data, error } = await supabase.from('hannam_notices')
-              .select('*')
-              .lte('start_date', today)
-              .gte('end_date', today)
-              .order('created_at', { ascending: false });
+    delete: async (id: string) => {
+      const { error } = await supabase.from('hannam_notices').delete().eq('id', id);
+      if (error) throw error;
+    },
+    getActiveNotices: async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const { data, error } = await supabase.from('hannam_notices')
+          .select('*')
+          .lte('start_date', today)
+          .gte('end_date', today)
+          .order('created_at', { ascending: false });
 
-            if (error) {
-              if (error.code === '42P01') return [];
-              console.warn('Fetch Notices Warning:', error.message);
-              return [];
-            }
-            return transformKeys(data || [], 'toCamel') as Notice[];
-          } catch (e) {
-            return [];
-          }
+        if (error) {
+          if (error.code === '42P01') return [];
+          console.warn('Fetch Notices Warning:', error.message);
+          return [];
         }
-},
-notifications: {
-  getByMemberId: async (memberId: string) => {
-    const { data } = await supabase.from('hannam_notifications')
-      .select('*')
-      .eq('member_id', memberId)
-      .order('created_at', { ascending: false });
-    return transformKeys(data || [], 'toCamel') as Notification[];
+        return transformKeys(data || [], 'toCamel') as Notice[];
+      } catch (e) {
+        return [];
+      }
+    }
   },
+  notifications: {
+    getByMemberId: async (memberId: string) => {
+      const { data } = await supabase.from('hannam_notifications')
+        .select('*')
+        .eq('member_id', memberId)
+        .order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as Notification[];
+    },
     markAsRead: async (id: string) => {
       await supabase.from('hannam_notifications').update({ is_read: true }).eq('id', id);
     },
-      add: async (noti: any) => {
-        const { data, error } = await supabase.from('hannam_notifications').insert([transformKeys({
-          id: `NOTI-${Date.now()}`,
-          ...noti,
-          isRead: false,
-          createdAt: new Date().toISOString()
-        }, 'toSnake')]).select();
-        if (error) throw error;
-        return transformKeys(data?.[0], 'toCamel') as Notification;
-      }
-}
+    add: async (noti: any) => {
+      const { data, error } = await supabase.from('hannam_notifications').insert([transformKeys({
+        id: `NOTI-${Date.now()}`,
+        ...noti,
+        isRead: false,
+        createdAt: new Date().toISOString()
+      }, 'toSnake')]).select();
+      if (error) throw error;
+      return transformKeys(data?.[0], 'toCamel') as Notification;
+    }
+  }
 };

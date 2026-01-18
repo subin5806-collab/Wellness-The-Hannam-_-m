@@ -23,7 +23,7 @@ const MasterSettings: React.FC = () => {
   // Forms
   const [newProduct, setNewProduct] = useState<Partial<MembershipProduct>>({ name: '', totalAmount: 0, tier: 'BASIC', bonusAmount: 0, validMonths: 12, defaultDiscountRate: 0, description: '' });
   const [newProgram, setNewProgram] = useState<Partial<Program>>({ name: '', basePrice: 0, category: 'BODY', durationMinutes: 60, description: '' });
-  const [newManager, setNewManager] = useState<Partial<Manager>>({ name: '', phone: '', memo: '' });
+  const [newManager, setNewManager] = useState<Partial<Manager>>({ name: '', phone: '', adminMemo: '' });
   const [loginPwdForm, setLoginPwdForm] = useState({ current: '', new: '', confirm: '', verificationCode: '' });
   const [isVerified, setIsVerified] = useState(false);
 
@@ -42,7 +42,7 @@ const MasterSettings: React.FC = () => {
     setEditingId(null);
     setNewProduct({ name: '', totalAmount: 0, tier: 'BASIC', bonusAmount: 0, validMonths: 12, defaultDiscountRate: 0, description: '' });
     setNewProgram({ name: '', basePrice: 0, category: 'BODY', durationMinutes: 60, description: '' });
-    setNewManager({ name: '', phone: '', memo: '' });
+    setNewManager({ name: '', phone: '', adminMemo: '' });
     setLoginPwdForm({ current: '', new: '', confirm: '', verificationCode: '' });
     setIsVerified(false);
   };
