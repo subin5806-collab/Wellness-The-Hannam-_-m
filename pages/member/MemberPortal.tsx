@@ -397,8 +397,8 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
           {view === 'membership' && (
             <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500 pb-12">
               <div className="px-2">
-                <h2 className="text-4xl font-serif-luxury font-bold text-[#1A3C34] leading-tight">멤버십 자산 내역</h2>
-                <p className="text-[13px] text-slate-400 font-medium mt-4 leading-relaxed">투명하게 기록된 모든 자산 이용 흐름을 확인하실 수 있습니다.</p>
+                <h2 className="text-4xl font-serif-luxury font-bold text-[#1A3C34] leading-tight">이용 내역</h2>
+                <p className="text-[13px] text-slate-400 font-medium mt-4 leading-relaxed">회원님의 소중한 웰니스 케어 상세 기록입니다.</p>
               </div>
               <div className="space-y-6">
                 {history.map(record => (
@@ -514,14 +514,43 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                     <p className="text-[16px] font-bold text-[#1A3C34] leading-relaxed italic border-l-4 border-[#A58E6F] pl-6">"{selectedRecord.noteSummary}"</p>
                   </div>
 
-                  <div className="pt-8 border-t border-slate-50 space-y-4">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Certification</label>
-                    <div className="w-full aspect-[2/1] bg-slate-50 rounded-[32px] flex items-center justify-center border border-slate-100 p-8 shadow-inner">
-                      {selectedRecord.signatureData ? (
-                        <img src={selectedRecord.signatureData} className="w-full h-full object-contain opacity-40 grayscale" alt="Verification Signature" />
-                      ) : (
-                        <span className="text-[11px] text-slate-300 font-bold italic">Verification Signature Pending</span>
-                      )}
+                  <div className="space-y-4">
+                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Wellness Care Note</label>
+                    <div className="p-6 bg-[#F9F9FB] rounded-2xl text-[14px] text-[#2F3A32] leading-relaxed font-medium whitespace-pre-wrap">
+                      {selectedRecord.noteDetails || '상세 기록이 없습니다.'}
+                    </div>
+                  </div>
+
+                  {selectedRecord.noteRecommendation && (
+                    <div className="space-y-4">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Manager Message</label>
+                      <p className="text-[14px] text-slate-600 leading-relaxed bg-[#FFF9F2] p-6 rounded-2xl border border-[#F2E8DA]">
+                        {selectedRecord.noteRecommendation}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="pt-8 border-t border-slate-50 space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">Used Amount</label>
+                        <p className="text-[16px] font-bold text-rose-400 tabular-nums">-₩{Math.floor(selectedRecord.finalPrice).toLocaleString()}</p>
+                      </div>
+                      <div className="space-y-2 text-right">
+                        <label className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">Balance After</label>
+                        <p className="text-[16px] font-bold text-emerald-600 tabular-nums">₩{Math.floor(selectedRecord.balanceAfter || 0).toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Certification</label>
+                      <div className="w-full aspect-[2/1] bg-slate-50 rounded-[32px] flex items-center justify-center border border-slate-100 p-8 shadow-inner">
+                        {selectedRecord.signatureData ? (
+                          <img src={selectedRecord.signatureData} className="w-full h-full object-contain opacity-80" alt="Verification Signature" />
+                        ) : (
+                          <span className="text-[11px] text-slate-300 font-bold italic">Verification Signature Pending</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
