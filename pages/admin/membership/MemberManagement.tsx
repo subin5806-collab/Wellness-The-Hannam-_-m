@@ -187,9 +187,11 @@ const MemberManagement: React.FC = () => {
   };
 
   if (selectedMember) {
+    // [Single Source of Truth]
+    // Calculate Stats from transactional history to guarantee consistency
     const totalPaid = details.memberships.reduce((sum, m) => sum + m.totalAmount, 0);
-    const totalUsed = details.memberships.reduce((sum, m) => sum + m.usedAmount, 0);
-    const currentBalance = details.memberships.reduce((sum, m) => sum + m.remainingAmount, 0);
+    const totalUsed = details.history.reduce((sum, h) => sum + (h.finalPrice || 0), 0);
+    const currentBalance = totalPaid - totalUsed;
 
     const activeMs = details.memberships.filter(ms => ms.status === 'active');
     const expiredMs = details.memberships.filter(ms => ms.status === 'expired');

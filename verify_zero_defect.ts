@@ -116,10 +116,14 @@ const verifyZeroDefect = async () => {
     const { data: msAfter } = await supabase.from('hannam_memberships').select('*').eq('id', msId).single();
 
     const expectedRem = 1812000; // 3000000 - 1188000
-    if (msAfter.remaining_amount === expectedRem) {
-        console.log(`[SUCCESS] Financial Logic: ${total} - ${deductAmount} = ${msAfter.remaining_amount} (Exact Match)`);
+    // [Safety Guard Check]
+    // Verification Script mirrors the db.ts 'healedUsed' logic: Total - NewRem
+    const expectedUsed = total - expectedRem;
+
+    if (msAfter.remaining_amount === expectedRem && msAfter.used_amount === expectedUsed) {
+        console.log(`[SUCCESS] Financial Logic & Safety Guard: ${total} - ${deductAmount} = Rem ${msAfter.remaining_amount}, Used ${msAfter.used_amount} (Exact Match)`);
     } else {
-        console.error(`[FAIL] Financial Logic Error. Expected ${expectedRem}, Got ${msAfter.remaining_amount}`);
+        console.error(`[FAIL] Financial Logic Error. Expected Rem ${expectedRem}, Used ${expectedUsed}. Got Rem ${msAfter.remaining_amount}, Used ${msAfter.used_amount}`);
         errors++;
     }
 
