@@ -89,7 +89,8 @@ const AdminDashboard: React.FC = () => {
 
   const filteredReservations = reservations.filter(res => {
     const m = members.find(mem => mem.id === res.memberId);
-    if (!m) return true;
+    // [Ghost Data Filter] If member doesn't exist (deleted), hide this reservation
+    if (!m) return false;
     const query = dashQuery.toLowerCase();
     return m.name.toLowerCase().includes(query) || m.phone.includes(query);
   });

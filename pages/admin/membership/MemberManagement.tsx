@@ -1,20 +1,26 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, hashPassword } from '../../../db';
-import { Member, Membership, MembershipProduct, CareRecord, Reservation, AuditLog } from '../../../types';
+import { Member, Membership, MembershipProduct, CareRecord, Reservation, AuditLog, Manager } from '../../../types';
 import SignaturePad from '../../../components/common/SignaturePad';
 import ContractManagement from './ContractManagement';
 
 import NotificationModal from '../../../components/admin/member/NotificationModal';
 import MemberMemoSection from '../../../components/admin/member/MemberMemoSection';
 import MemberRegistrationModal from '../../../components/admin/member/MemberRegistrationModal';
+import { useBalanceEngine } from '../../../hooks/useBalanceEngine';
 
-type DetailTab = 'USAGE' | 'AUDIT' | 'SECURITY';
+type DetailTab = 'PROFILE' | 'MEMBERSHIP' | 'USAGE' | 'AUDIT' | 'SECURITY';
 const SECONDARY_PWD_REQUIRED = 'ekdnfhem2ck';
 
-const MemberManagement: React.FC = () => {
+const MS_FILTER_ALL_LABEL = '전체 보기';
+
+export default function MemberManagement() {
   const { memberId } = useParams();
   const navigate = useNavigate();
+  const [params] = useState(new URLSearchParams(window.location.search));
+  const autoSelectId = params.get('id');
+
   const [members, setMembers] = useState<Member[]>([]);
   const [allMemberships, setAllMemberships] = useState<Membership[]>([]);
   const [membershipProducts, setMembershipProducts] = useState<MembershipProduct[]>([]);
@@ -22,10 +28,13 @@ const MemberManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expiryFilter, setExpiryFilter] = useState('');
   const [balanceFilter, setBalanceFilter] = useState<number | ''>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [activeTab, setActiveTab] = useState<DetailTab>('USAGE');
+  const balanceEngine = useBalanceEngine(selectedMember?.id || null);
+  const [activeTab, setActiveTab] = useState<DetailTab>('PROFILE');
   const [historyFilterId, setHistoryFilterId] = useState('all');
   const [zoomSignature, setZoomSignature] = useState<string | null>(null);
   const [selectedHistoryRecord, setSelectedHistoryRecord] = useState<CareRecord | null>(null);
@@ -443,31 +452,49 @@ const MemberManagement: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {(() => {
-                          const filtered = historyFilterId === 'all' ? details.history : details.history.filter(h => h.membershipId === historyFilterId);
-                          if (filtered.length === 0) return <tr><td colSpan={5} className="py-40 text-center text-slate-300 italic font-bold">검색된 이용 기록이 없습니다.</td></tr>;
-                          return filtered.map(h => (
-                            <tr key={h.id} className="hover:bg-slate-50/50 transition-colors group cursor-pointer" onClick={() => setSelectedHistoryRecord(h)}>
+                          const historyList = balanceEngine.unifiedHistory;
+                          if (historyList.length === 0) return <tr><td colSpan={5} className="py-40 text-center text-slate-300 italic font-bold">이용 기록이 없습니다.</td></tr>;
+
+                          return historyList.map((h, idx) => (
+                            <tr key={`${h.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors group cursor-pointer" onClick={() => {
+                              if (h.type === 'completed') {
+                                setSelectedHistoryRecord(h.rawRecord);
+                              }
+                            }}>
                               <td className="px-10 py-8">
                                 <div className="text-[15px] font-bold text-[#2F3A32] tabular-nums">{h.date}</div>
-                                <div className="text-[11px] text-slate-300 font-bold tabular-nums mt-1">{h.createdAt?.split('T')[1].slice(0, 5)}</div>
+                                <div className="text-[11px] text-slate-300 font-bold tabular-nums mt-1">{h.time}</div>
                               </td>
                               <td className="px-10 py-8">
-                                <div className="text-[15px] font-bold text-[#1A3C34]">{h.noteSummary}</div>
-                                <p className="text-[11px] text-slate-400 mt-1 lines-clamp-1">{h.noteDetails || '상세 내용 없음'}</p>
+                                <div className={`text-[15px] font-bold ${h.type === 'reserved' ? 'text-slate-400 italic' : 'text-[#1A3C34]'}`}>
+                                  {h.programName}
+                                  {h.type === 'reserved' && <span className="ml-2 text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full not-italic">예약중</span>}
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-1 line-clamp-1">{h.description || (h.type === 'reserved' ? '예약 대기' : '상세 내용 없음')}</p>
                               </td>
                               <td className="px-10 py-8 text-right">
-                                <div className="text-[15px] font-bold text-rose-400 tabular-nums">-₩{h.finalPrice.toLocaleString()}</div>
-                                <div className="text-[11px] text-emerald-600 font-bold tabular-nums mt-1">잔액 ₩{(h.balanceAfter || 0).toLocaleString()}</div>
+                                {h.type === 'completed' ? (
+                                  <>
+                                    <div className="text-[15px] font-bold text-rose-400 tabular-nums">-₩{h.amount.toLocaleString()}</div>
+                                    <div className="text-[11px] text-emerald-600 font-bold tabular-nums mt-1">잔액 ₩{(h.balanceAfter || 0).toLocaleString()}</div>
+                                  </>
+                                ) : (
+                                  <span className="text-[11px] text-slate-300 font-bold">예정</span>
+                                )}
                               </td>
                               <td className="px-10 py-8 text-center">
-                                {h.signatureData ? (
-                                  <img src={h.signatureData} className="inline-block h-10 w-16 object-contain grayscale hover:grayscale-0 transition-all opacity-50 hover:opacity-100" />
-                                ) : <span className="text-[9px] text-slate-200 uppercase font-bold">미서명</span>}
+                                {h.signature ? (
+                                  <img src={h.signature} className="inline-block h-10 w-16 object-contain grayscale hover:grayscale-0 transition-all opacity-50 hover:opacity-100" />
+                                ) : (
+                                  <span className="text-[9px] text-slate-200 uppercase font-bold">{h.type === 'reserved' ? '-' : '미서명'}</span>
+                                )}
                               </td>
                               <td className="px-10 py-8 text-center">
-                                <div className="w-10 h-10 rounded-2xl bg-[#F9F9FB] flex items-center justify-center text-slate-300 group-hover:bg-[#1A3C34] group-hover:text-white transition-all shadow-sm">
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
-                                </div>
+                                {h.type === 'completed' && (
+                                  <div className="w-10 h-10 rounded-2xl bg-[#F9F9FB] flex items-center justify-center text-slate-300 group-hover:bg-[#1A3C34] group-hover:text-white transition-all shadow-sm">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           ));
@@ -742,7 +769,20 @@ const MemberManagement: React.FC = () => {
                   <p className="text-sm text-slate-600">{selectedHistoryRecord.noteRecommendation}</p>
                 </div>
               )}
-
+              <div className="flex gap-16 item-end px-12 pb-10">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Total Balance</p>
+                  <h2 className="text-4xl font-black text-[#1A3C34] tracking-tighter">
+                    ₩ {balanceEngine.totalRemaining.toLocaleString()}
+                  </h2>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Usage Rate</p>
+                  <h2 className="text-4xl font-black text-[#A58E6F] tracking-tighter">
+                    {balanceEngine.totalAmount > 0 ? Math.round((balanceEngine.totalUsed / balanceEngine.totalAmount) * 100) : 0}%
+                  </h2>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-50">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">결제 금액</label>
@@ -778,4 +818,4 @@ const MemberManagement: React.FC = () => {
 };
 
 
-export default MemberManagement;
+

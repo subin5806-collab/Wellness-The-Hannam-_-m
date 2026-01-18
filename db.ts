@@ -158,10 +158,30 @@ export const db = {
       }
       return transformKeys(data?.[0], 'toCamel');
     },
+    getPublicProfile: async (id: string) => {
+      // [SECURITY] Explicitly select columns to ban 'admin_memo' from fetching
+      const { data } = await supabase.from('hannam_members')
+        .select('id, name, birth_date, gender, phone, email, address, photo_url, created_at, is_deleted, initial_password_set, confirmed_notice_ids')
+        .eq('id', id)
+        .maybeSingle();
+      return transformKeys(data, 'toCamel') as Member;
+    },
     getByPhoneFromServer: async (phone: string) => {
       const cleanPhone = phone.replace(/[^0-9]/g, '');
       const { data } = await supabase.from('hannam_members').select('*').eq('phone', cleanPhone).eq('is_deleted', false).maybeSingle();
       return transformKeys(data, 'toCamel') as Member | null;
+    }
+  },
+  membershipProducts: {
+    getAll: async () => {
+      const { data } = await supabase.from('hannam_membership_products').select('*').order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as MembershipProduct[];
+    }
+  },
+  programs: {
+    getAll: async () => {
+      const { data } = await supabase.from('hannam_programs').select('*').order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as Program[];
     }
   },
   memberships: {
@@ -242,39 +262,42 @@ export const db = {
 
       if (msFetchError || !memberMs) throw new Error('멤버십 정보를 찾을 수 없습니다.');
 
-      // Data Integrity Check
-      const currentTotal = memberMs.total_amount;
-      const currentRemaining = memberMs.remaining_amount;
-      const currentUsed = memberMs.used_amount || 0;
+      // [STRONG VALIDATION & DYNAMIC SUMMATION]
+      // Trust only Total Amount and History Sum. Ignore potentially drifted 'remaining_amount' in DB.
 
-      // Warn if drift detected (but proceed with SAFE calculation based on Remaining)
-      // We assume 'Remaining' is the spendable truth, but we must fix 'Used' to match Total.
-      if (currentTotal !== (currentRemaining + currentUsed)) {
-        console.warn(`[Financial Integrity Warning] Membership ${record.membershipId} drift detected: Total(${currentTotal}) != Rem(${currentRemaining}) + Used(${currentUsed}).`);
-        // Note: We will calculate new states based on the operation, ensuring the NEW state is consistent relative to Total if possible, 
-        // or at least consistent with itself.
+      const { data: history, error: hErr } = await supabase
+        .from('hannam_care_records')
+        .select('final_price')
+        .eq('membership_id', record.membershipId); // Removed is_deleted check as per schema findings
+
+      if (hErr) throw new Error(`이력 조회 실패: ${hErr.message}`);
+
+      const usageSum = history?.reduce((sum, h) => sum + (h.finalPrice || h.final_price || 0), 0) || 0;
+      const realRemaining = memberMs.total_amount - usageSum;
+
+      // Safety Check: Is the requested amount available?
+      if (realRemaining < record.finalPrice) {
+        throw new Error(`잔액이 부족합니다. (실제 잔액: ${realRemaining.toLocaleString()}원, 필요: ${record.finalPrice.toLocaleString()}원)`);
       }
 
-      if (currentRemaining < record.finalPrice) throw new Error(`잔액이 부족합니다. (보유: ${currentRemaining.toLocaleString()}원, 필요: ${record.finalPrice.toLocaleString()}원)`);
+      const newRemaining = realRemaining - record.finalPrice;
+      const newUsed = usageSum + record.finalPrice;
 
-      const newRemaining = currentRemaining - record.finalPrice;
-      const newUsed = currentUsed + record.finalPrice;
-
-      // Double-check the NEW state consistency roughly (might still be off if it was off before, but we ensure the DELTA is correct)
-      // Ideally, we could enforce: newUsed = currentTotal - newRemaining; to auto-heal 'Used'.
-      // Let's do that to fix the 'Calculation Mess'.
-      // [AUTO-HEAL STRATEGY]: Trust Total and New Remaining. Recalculate Used.
-      const healedUsed = currentTotal - newRemaining;
+      // [SAFETY GUARD] Final Integrity Verification
+      // Ensure 1-won precision: Total must equal NewRemaining + NewUsed
+      if (memberMs.total_amount !== (newRemaining + newUsed)) {
+        throw new Error(`[CRITICAL] 무결성 검증 실패: 합산 불일치 (Total ${memberMs.total_amount} != ${newRemaining} + ${newUsed}). 저장이 차단되었습니다.`);
+      }
 
       const { error: updateError } = await supabase
         .from('hannam_memberships')
         .update({
           remaining_amount: newRemaining,
-          used_amount: healedUsed // Enforce Result Consistency
+          used_amount: newUsed
         })
         .eq('id', record.membershipId);
 
-      if (updateError) throw new Error(`잔액 차감 실패: ${updateError.message}`);
+      if (updateError) throw new Error(`잔액 업데이트 실패: ${updateError.message}`);
 
       // 2. Create Care Record
       const { data: newRecord, error: insertError } = await supabase.from('hannam_care_records').insert([transformKeys({
