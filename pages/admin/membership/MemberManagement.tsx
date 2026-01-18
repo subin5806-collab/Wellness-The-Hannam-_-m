@@ -39,6 +39,7 @@ const MemberManagement: React.FC = () => {
 
   const [showGrantMembershipModal, setShowGrantMembershipModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null); // State for Edit Mode
   const [grantForm, setGrantForm] = useState({
     regDate: new Date().toISOString().split('T')[0],
     startDate: new Date().toISOString().split('T')[0],
@@ -164,12 +165,25 @@ const MemberManagement: React.FC = () => {
     const recipients = selectedMember ? [selectedMember.id] : Array.from(selectedMemberIds);
     if (recipients.length === 0) return alert('대상 회원이 없습니다.');
 
-    // Mock API Call
-    console.log(`Sending message to ${recipients.length} members: ${message}`);
-    alert(`${recipients.length}명에게 알림이 전송되었습니다.\n"${message}"`);
+    try {
+      // Send notifications one by one
+      await Promise.all(recipients.map(memberId =>
+        db.notifications.add({
+          memberId,
+          title: '관리자 알림',
+          content: message,
+          isRead: false
+          // Note: 'type' or 'category' omitted to avoid schema issues, defaulting to DB default or allowed null
+        })
+      ));
 
-    setSelectedMemberIds(new Set());
-    setShowNotiModal(false);
+      alert(`${recipients.length}명에게 알림이 전송되었습니다.`);
+      setSelectedMemberIds(new Set());
+      setShowNotiModal(false);
+    } catch (e: any) {
+      console.error('Notification Error:', e);
+      alert(`알림 전송 실패: ${e.message}`);
+    }
   };
 
   if (selectedMember) {
@@ -236,7 +250,7 @@ const MemberManagement: React.FC = () => {
 
           <div className="mt-20 w-full flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={() => alert('회원 정보 수정은 준비 중입니다.')} className="py-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-[#2F3A32] hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm">
+              <button onClick={() => { setEditingMember(selectedMember); setShowRegistrationModal(true); }} className="py-4 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold text-[#2F3A32] hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                 수정
               </button>
@@ -686,10 +700,15 @@ const MemberManagement: React.FC = () => {
 
       {showRegistrationModal && (
         <MemberRegistrationModal
-          onClose={() => setShowRegistrationModal(false)}
+          initialData={editingMember}
+          onClose={() => {
+            setShowRegistrationModal(false);
+            setEditingMember(null);
+          }}
           onSuccess={() => {
+            setShowRegistrationModal(false);
+            setEditingMember(null);
             fetchMembers();
-            // Optional: Auto-select/view the new member?
           }}
         />
       )}
