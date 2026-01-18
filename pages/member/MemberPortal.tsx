@@ -8,7 +8,7 @@ interface MemberPortalProps {
   onLogout: () => void;
 }
 
-type ViewMode = 'dashboard' | 'care' | 'membership' | 'settings' | 'notifications';
+type ViewMode = 'dashboard' | 'care' | 'membership' | 'settings' | 'notifications' | 'reports';
 
 const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
   const [member, setMember] = useState<Member | null>(null);
@@ -441,11 +441,37 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
               <button onClick={onLogout} className="w-full py-6 bg-rose-50 text-rose-400 rounded-[32px] font-bold uppercase text-[11px] tracking-widest border border-rose-100 shadow-sm">Sign Out</button>
             </div>
           )}
+          {view === 'reports' && (
+            <div className="space-y-10 animate-in fade-in slide-in-from-right-4 duration-500 pb-12">
+              <div className="px-2">
+                <h2 className="text-4xl font-serif-luxury font-bold text-[#1A3C34] leading-tight">Wellness Report</h2>
+                <p className="text-[13px] text-slate-400 font-medium mt-4 leading-relaxed">회원님의 웰니스 케어 히스토리와 전문가 피드백을 확인하세요.</p>
+              </div>
+
+              <div className="relative border-l border-slate-200 ml-6 space-y-12 py-4">
+                {history.map(record => (
+                  <div key={record.id} className="relative pl-8" onClick={() => setSelectedRecord(record)}>
+                    <div className="absolute -left-1.5 top-2 w-3 h-3 rounded-full bg-[#A58E6F] ring-4 ring-[#F9F9F7]"></div>
+                    <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm hover:border-[#1A3C34] transition-all cursor-pointer group">
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{record.date}</span>
+                        <span className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest">{programs.find(p => p.id === record.programId)?.category || 'CARE'}</span>
+                      </div>
+                      <h4 className="text-xl font-bold text-[#1A3C34] mb-2 group-hover:text-[#A58E6F] transition-colors">{programs.find(p => p.id === record.programId)?.name || 'Wellness Care'}</h4>
+                      <p className="text-[13px] text-slate-500 line-clamp-2 leading-relaxed">"{record.noteSummary}"</p>
+                    </div>
+                  </div>
+                ))}
+                {history.length === 0 && <div className="pl-8 text-slate-300 italic">아직 기록된 케어 리포트가 없습니다.</div>}
+              </div>
+            </div>
+          )}
         </main>
 
         <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/90 backdrop-blur-3xl border-t flex justify-around items-center px-6 py-4 z-50">
           {[
             { id: 'dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', label: 'Home' },
+            { id: 'reports', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', label: 'Report' },
             { id: 'membership', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', label: 'Usage' },
             { id: 'settings', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z', label: 'Profile' }
           ].map(tab => (

@@ -205,9 +205,31 @@ const verifyZeroDefect = async () => {
     console.log('[Check 5] UI <-> DB Field Mapping Confirmed: noteDetails -> note_details, noteRecommendation -> note_recommendation.');
 
 
+    console.log('[Check 5] UI <-> DB Field Mapping Confirmed: noteDetails -> note_details, noteRecommendation -> note_recommendation.');
+
+    // --- CHECK 6: Care Record Update Persistence (Admin Edit Feature) ---
+    console.log('[Check 6] Verifying Care Record Update Persistence...');
+    const updatePayload = {
+        note_summary: 'Updated Summary',
+        note_details: 'Updated Details',
+        note_future_ref: 'Secret Admin Note'
+    };
+    const { error: updateNoteErr } = await supabase.from('hannam_care_records').update(updatePayload).eq('id', recordId);
+
+    if (updateNoteErr) { console.error('[FAIL] Care Record Update Failed', updateNoteErr); errors++; }
+    else {
+        const { data: updatedRec } = await supabase.from('hannam_care_records').select('*').eq('id', recordId).single();
+        if (updatedRec.note_summary === 'Updated Summary' && updatedRec.note_future_ref === 'Secret Admin Note') {
+            console.log('[SUCCESS] Care Record Update (Summary & Secret Note) Persisted.');
+        } else {
+            console.error('[FAIL] Care Record Update Mismatch.'); errors++;
+        }
+    }
+
     // Cleanup
     await supabase.from('hannam_memberships').delete().eq('id', msId);
     await supabase.from('hannam_notifications').delete().eq('id', notiId);
+    await supabase.from('hannam_care_records').delete().eq('id', recordId);
     await supabase.from('hannam_members').delete().eq('id', memberId);
 
     console.log(`>>> [END] Verification Complete. Total Errors: ${errors}`);

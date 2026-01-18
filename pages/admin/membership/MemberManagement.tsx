@@ -39,7 +39,9 @@ const MemberManagement: React.FC = () => {
 
   const [showGrantMembershipModal, setShowGrantMembershipModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
-  const [editingMember, setEditingMember] = useState<Member | null>(null); // State for Edit Mode
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [isEditingHistory, setIsEditingHistory] = useState(false); // [NEW]
+  const [editHistoryForm, setEditHistoryForm] = useState<Partial<CareRecord>>({}); // [NEW]
   const [grantForm, setGrantForm] = useState({
     regDate: new Date().toISOString().split('T')[0],
     startDate: new Date().toISOString().split('T')[0],
