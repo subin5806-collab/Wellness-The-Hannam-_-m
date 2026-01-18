@@ -60,7 +60,8 @@ export const useBalanceEngine = (memberId: string | null): BalanceEngineResult =
             // Group usages by membershipId
             const usageMap = new Map<string, number>();
             allCareRecords.forEach(r => {
-                if (r.membershipId) {
+                // [Financial Logic] Only signed/completed records count towards usage
+                if (r.membershipId && r.signatureStatus === 'completed') {
                     const current = usageMap.get(r.membershipId) || 0;
                     usageMap.set(r.membershipId, current + (r.finalPrice || 0));
                 }

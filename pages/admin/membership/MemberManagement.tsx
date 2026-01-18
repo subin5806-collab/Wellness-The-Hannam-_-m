@@ -7,7 +7,7 @@ import ContractManagement from './ContractManagement';
 
 import NotificationModal from '../../../components/admin/member/NotificationModal';
 import MemberMemoSection from '../../../components/admin/member/MemberMemoSection';
-import MemberRegistrationModal from '../../../components/admin/member/MemberRegistrationModal';
+import CareDetailModal from '../../../components/member/CareDetailModal';
 import { useBalanceEngine } from '../../../hooks/useBalanceEngine';
 
 type DetailTab = 'PROFILE' | 'MEMBERSHIP' | 'USAGE' | 'AUDIT' | 'SECURITY';
@@ -744,76 +744,10 @@ export default function MemberManagement() {
         />
       )}
 
-      {/* [NEW] History Detail Modal */}
-      {selectedHistoryRecord && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[2000] flex items-center justify-center p-8 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[40px] shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
-            <header className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <div>
-                <p className="text-[10px] font-bold text-[#A58E6F] uppercase tracking-widest">{selectedHistoryRecord.date}</p>
-                <h3 className="text-xl font-bold text-[#1A3C34] mt-1">{selectedHistoryRecord.noteSummary}</h3>
-              </div>
-              <button onClick={() => setSelectedHistoryRecord(null)} className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-400 hover:text-[#1A3C34] transition-colors"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
-            </header>
-            <div className="p-8 overflow-y-auto space-y-8">
-              <div className="space-y-3">
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Detail Note (관리자 기록)</label>
-                <div className="p-6 bg-[#F9F9FB] rounded-2xl text-[14px] text-[#2F3A32] leading-relaxed font-medium whitespace-pre-wrap">
-                  {selectedHistoryRecord.noteDetails || '상세 기록이 없습니다.'}
-                </div>
-              </div>
-
-              {selectedHistoryRecord.noteRecommendation && (
-                <div className="space-y-3">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Recommendation</label>
-                  <p className="text-sm text-slate-600">{selectedHistoryRecord.noteRecommendation}</p>
-                </div>
-              )}
-              <div className="flex gap-16 item-end px-12 pb-10">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Total Balance</p>
-                  <h2 className="text-4xl font-black text-[#1A3C34] tracking-tighter">
-                    ₩ {balanceEngine.totalRemaining.toLocaleString()}
-                  </h2>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Usage Rate</p>
-                  <h2 className="text-4xl font-black text-[#A58E6F] tracking-tighter">
-                    {balanceEngine.totalAmount > 0 ? Math.round((balanceEngine.totalUsed / balanceEngine.totalAmount) * 100) : 0}%
-                  </h2>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-50">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">결제 금액</label>
-                  <p className="text-lg font-bold text-[#2F3A32]">₩{selectedHistoryRecord.finalPrice.toLocaleString()}</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">차감 후 잔액</label>
-                  <p className="text-lg font-bold text-emerald-600">₩{(selectedHistoryRecord.balanceAfter || 0).toLocaleString()}</p>
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-slate-50 space-y-4">
-                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Member Signature</label>
-                {selectedHistoryRecord.signatureData ? (
-                  <div className="border border-slate-100 rounded-2xl p-4 bg-white flex justify-center">
-                    <img src={selectedHistoryRecord.signatureData} alt="Signature" className="max-h-32 object-contain" />
-                  </div>
-                ) : (
-                  <div className="p-6 border-2 border-dashed border-slate-100 rounded-2xl text-center text-[11px] font-bold text-slate-300 uppercase tracking-widest">
-                    서명 대기 중 (Pending)
-                  </div>
-                )}
-                {selectedHistoryRecord.signedAt && (
-                  <p className="text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">Signed at: {selectedHistoryRecord.signedAt?.split('T')[0]}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
+  )
+}
+    </div >
   );
 };
 
