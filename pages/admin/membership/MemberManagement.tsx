@@ -8,6 +8,7 @@ import ContractManagement from './ContractManagement';
 import NotificationModal from '../../../components/admin/member/NotificationModal';
 import MemberMemoSection from '../../../components/admin/member/MemberMemoSection';
 import CareDetailModal from '../../../components/member/CareDetailModal';
+import MemberRegistrationModal from '../../../components/admin/member/MemberRegistrationModal';
 import { useBalanceEngine } from '../../../hooks/useBalanceEngine';
 
 type DetailTab = 'PROFILE' | 'MEMBERSHIP' | 'USAGE' | 'AUDIT' | 'SECURITY';
@@ -747,9 +748,7 @@ export default function MemberManagement() {
     </div>
   )
 }
-    </div >
-  );
-};
+
 
 
 
