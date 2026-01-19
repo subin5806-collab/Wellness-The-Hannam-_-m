@@ -10,6 +10,7 @@ import NoticeManagement from './pages/admin/system/NoticeManagement';
 import CareSessionPage from './pages/admin/care/CareSessionPage';
 import MasterSettings from './pages/admin/system/MasterSettings';
 import CareRecordManagement from './pages/admin/care/CareRecordManagement';
+import CareHistorySplitPage from './pages/admin/care/CareHistorySplitPage';
 
 const App: React.FC = () => {
   const [auth, setAuth] = useState<{ type: 'admin' | 'member' | null; id: string | null; email?: string }>(() => {
@@ -44,6 +45,7 @@ const App: React.FC = () => {
                   <Route index element={<AdminDashboard />} />
                   <Route path="members" element={<MemberManagement />} />
                   <Route path="members/:memberId" element={<MemberManagement />} />
+                  <Route path="members/:memberId/care-history" element={<CareHistorySplitPage />} />
                   <Route path="records" element={<CareRecordManagement />} />
                   <Route path="notices" element={<NoticeManagement />} />
                   <Route path="care/:memberId" element={<CareSessionPage />} />

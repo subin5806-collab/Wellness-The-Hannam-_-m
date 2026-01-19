@@ -87,7 +87,7 @@ const CareSessionPage: React.FC = () => {
         discountRate: discountRate,
         finalPrice: finalAmount,
         noteSummary: notes.summary,
-        noteDetails: notes.details,
+        noteDetails: '', // [REMOVED] Private notes are now separate
         noteRecommendation: notes.recommendation,
         noteFutureRef: ''
       });// 예약 상태 변경
@@ -220,10 +220,7 @@ const CareSessionPage: React.FC = () => {
 
           <div className="space-y-4 pt-4 border-t border-slate-50">
             <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-1.5 col-span-2">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">Detailed Note (Private)</label>
-                <textarea className="w-full px-4 py-3 bg-[#F9F9F7] rounded-[20px] h-32 outline-none border border-transparent focus:border-[#1A3C34] focus:bg-white transition-all text-xs leading-relaxed font-medium resize-none" placeholder="케어 상세 내용 및 특이사항..." value={notes.details} onChange={e => setNotes({ ...notes, details: e.target.value })} />
-              </div>
+
               <div className="space-y-1.5">
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">Summary (Visible)</label>
                 <textarea className="w-full px-4 py-3 bg-[#F9F9F7] rounded-[20px] h-20 outline-none border border-transparent focus:border-[#1A3C34] focus:bg-white transition-all text-xs leading-relaxed font-medium resize-none" placeholder="고객에게 보여질 요약..." value={notes.summary} onChange={e => setNotes({ ...notes, summary: e.target.value })} />

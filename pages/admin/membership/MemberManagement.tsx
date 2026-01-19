@@ -492,8 +492,19 @@ export default function MemberManagement() {
                               </td>
                               <td className="px-10 py-8 text-center">
                                 {h.type === 'completed' && (
-                                  <div className="w-10 h-10 rounded-2xl bg-[#F9F9FB] flex items-center justify-center text-slate-300 group-hover:bg-[#1A3C34] group-hover:text-white transition-all shadow-sm">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                                  <div className="flex justify-center gap-2 items-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/admin/members/${selectedMember.id}/care-history?recordId=${h.id}`);
+                                      }}
+                                      className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-[#A58E6F] hover:bg-[#1A3C34] hover:text-white hover:border-transparent transition-all shadow-sm flex items-center gap-1"
+                                    >
+                                      <span>🔒</span> 비공개 노트
+                                    </button>
+                                    <div className="w-10 h-10 rounded-2xl bg-[#F9F9FB] flex items-center justify-center text-slate-300 group-hover:bg-[#1A3C34] group-hover:text-white transition-all shadow-sm">
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" /></svg>
+                                    </div>
                                   </div>
                                 )}
                               </td>

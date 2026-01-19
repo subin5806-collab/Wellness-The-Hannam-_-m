@@ -136,6 +136,16 @@ export interface CareRecord {
   signedAt?: string; // 추가: 서명 일시
   date: string;
   createdAt: string;
+  privateNote?: AdminPrivateNote; // 관리자 전용 (Member API에서는 절대 반환하지 않음)
+}
+
+export interface AdminPrivateNote {
+  id: string;
+  careRecordId: string;
+  adminEmail: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Reservation {

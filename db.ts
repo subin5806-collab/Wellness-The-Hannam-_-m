@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Member, Notice, Membership, CareRecord, Program, Admin, Reservation, Manager, Notification, Contract, MembershipProduct, ContractTemplate, AuditLog, SystemBackup } from './types';
+import { Member, Notice, Membership, CareRecord, Program, Admin, Reservation, Manager, Notification, Contract, MembershipProduct, ContractTemplate, AuditLog, SystemBackup, AdminPrivateNote } from './types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ghhknsewwevbgojozdzc.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaGtuc2V3d2V2Ymdvam96ZHpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1ODg1NTUsImV4cCI6MjA4MzE2NDU1NX0.AYHMQSU6d9c7avX8CeOoNekFbJoibVxWno9PkIOuSnc';
@@ -64,7 +64,9 @@ const FIELD_MAP: Record<string, string> = {
   'admin_email': 'adminEmail',
   'created_at': 'createdAt',
   'old_value': 'oldValue',
-  'new_value': 'newValue'
+  'new_value': 'newValue',
+  'care_record_id': 'careRecordId',
+  'admin_private_notes': 'adminPrivateNotes'
 };
 
 const transformKeys = (obj: any, type: 'toCamel' | 'toSnake'): any => {
@@ -272,7 +274,7 @@ export const db = {
 
       if (hErr) throw new Error(`이력 조회 실패: ${hErr.message}`);
 
-      const usageSum = history?.reduce((sum, h) => sum + (h.finalPrice || h.final_price || 0), 0) || 0;
+      const usageSum = history?.reduce((sum, h) => sum + ((h as any).final_price || 0), 0) || 0;
       const realRemaining = memberMs.total_amount - usageSum;
 
       // Safety Check: Is the requested amount available?
@@ -377,7 +379,7 @@ export const db = {
       // Admin Only (RLS should enforce, or logic here)
       const { data, error } = await supabase
         .from('hannam_care_records')
-        .update(transformKeys(updates)) // Enable camelCase -> snake_case
+        .update(transformKeys(updates, 'toSnake')) // Enable camelCase -> snake_case
         .eq('id', id)
         .select();
 
@@ -728,6 +730,60 @@ export const db = {
       }, 'toSnake')]).select();
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel') as Notification;
+    }
+  },
+  adminNotes: {
+    getByCareRecordId: async (careRecordId: string) => {
+      // [SECURITY] RLS will enforce admin-only access
+      const { data } = await supabase.from('hannam_admin_private_notes')
+        .select('*')
+        .eq('care_record_id', careRecordId)
+        .maybeSingle();
+      return transformKeys(data, 'toCamel') as AdminPrivateNote | null;
+    },
+    upsert: async (careRecordId: string, content: string) => {
+      const saved = localStorage.getItem('hannam_auth_session');
+      const auth = saved ? JSON.parse(saved) : null;
+      const adminEmail = auth?.email || 'unknown';
+
+      // Check existing
+      const { data: existing } = await supabase.from('hannam_admin_private_notes')
+        .select('id')
+        .eq('care_record_id', careRecordId)
+        .maybeSingle();
+
+      let result;
+      if (existing) {
+        // Update
+        const { data, error } = await supabase.from('hannam_admin_private_notes')
+          .update({
+            content,
+            updated_at: new Date().toISOString()
+          })
+          .eq('care_record_id', careRecordId)
+          .select();
+        if (error) throw error;
+        result = data?.[0];
+      } else {
+        // Insert
+        // Need to fetch memberId from careRecord to fill the foreign key
+        const { data: record } = await supabase.from('hannam_care_records').select('member_id').eq('id', careRecordId).single();
+        const memberId = record?.member_id;
+
+        const { data, error } = await supabase.from('hannam_admin_private_notes')
+          .insert([{
+            care_record_id: careRecordId,
+            member_id: memberId, // Included for redundancy/RLS if needed
+            admin_email: adminEmail,
+            content,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }])
+          .select();
+        if (error) throw error;
+        result = data?.[0];
+      }
+      return transformKeys(result, 'toCamel') as AdminPrivateNote;
     }
   }
 };
