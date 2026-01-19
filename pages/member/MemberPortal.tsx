@@ -63,10 +63,40 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
       // So the previous edit might have failed or been overwritten?
       // Or maybe lines 128-141 were somewhere else?
       // Line 58 is inside fetchData.
-      // I will replace getById with getPublicProfile HERE too.
+      // I will replace getById with getPublicProfile HERE      
+      // [SESSION VALIDATION] Trust the Profile ID (TEXT/Phone)
+      // We removed the UUID enforcement logic.
+      try {
+        const preProfile = await db.members.getPublicProfile(memberId);
+
+        if (!preProfile || !preProfile.id) {
+          console.error('[Session Check] No profile found for ID:', memberId);
+          alert('회원 정보를 찾을 수 없습니다. 다시 로그인해 주세요.');
+          onLogout();
+          return;
+        }
+
+        // Ensure Session ID matches the DB ID (Source of Truth)
+        if (preProfile.id !== memberId) {
+          console.warn('[Session Sync] Updating Session ID to match DB:', memberId, '->', preProfile.id);
+          const saved = localStorage.getItem('hannam_auth_session');
+          if (saved) {
+            const auth = JSON.parse(saved);
+            auth.id = preProfile.id;
+            localStorage.setItem('hannam_auth_session', JSON.stringify(auth));
+            window.location.reload();
+            return;
+          }
+        }
+
+      } catch (e) {
+        console.error('[Session Check] Error:', e);
+        // If network fails, we proceed to try Promise.all which might allow partial load?
+        // Or we could block. Given "User Experience", we try to proceed.
+      }
 
       const [mInfo, allMs, careList, resList, allProgs, fetchedNotices, allNotis, allProducts] = await Promise.all([
-        db.members.getPublicProfile(memberId), // CHANGED
+        db.members.getPublicProfile(memberId),
         db.memberships.getAllByMemberId(memberId),
         db.careRecords.getByMemberId(memberId),
         db.reservations.getByMemberId(memberId),

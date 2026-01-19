@@ -146,7 +146,7 @@ export const db = {
       const hashedPassword = await hashPassword(rawPassword);
       const { data, error } = await supabase.from('hannam_members').insert([transformKeys({
         ...member,
-        id: crypto.randomUUID(), // Auto-generate UUID
+        id: cleanPhone, // [ARCHITECTURE CHANGE] Use Phone as ID (TEXT)
         phone: cleanPhone,
         password: hashedPassword,
         initialPasswordSet: false,
@@ -161,12 +161,20 @@ export const db = {
       return transformKeys(data?.[0], 'toCamel');
     },
     getPublicProfile: async (id: string) => {
-      // [SECURITY] Explicitly select columns to ban 'admin_memo' from fetching
-      const { data } = await supabase.from('hannam_members')
-        .select('id, name, birth_date, gender, phone, email, address, photo_url, created_at, is_deleted, initial_password_set, confirmed_notice_ids')
-        .eq('id', id)
+      // [ARCHITECTURE] ID is now strictly Phone Number (TEXT)
+      const cleanId = id.replace(/[^0-9]/g, '');
+
+      const { data, error } = await supabase.from('hannam_members')
+        .select('id, name, birth_date, gender, phone, email, address, created_at, is_deleted, initial_password_set, confirmed_notice_ids')
+        .eq('id', cleanId)
         .maybeSingle();
-      return transformKeys(data, 'toCamel') as Member;
+
+      if (data) return transformKeys(data, 'toCamel') as Member;
+
+      if (error) {
+        console.warn('[DB] Member lookup failed:', error);
+      }
+      return null as any;
     },
     getByPhoneFromServer: async (phone: string) => {
       const cleanPhone = phone.replace(/[^0-9]/g, '');
