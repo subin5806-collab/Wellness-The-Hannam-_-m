@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { db } from '../db';
+import { db, supabase } from '../db';
 import { Membership, CareRecord } from '../types';
 
 interface BalanceEngineResult {
@@ -39,7 +39,30 @@ export const useBalanceEngine = (memberId: string | null): BalanceEngineResult =
             setResult(prev => ({ ...prev, isLoading: false }));
             return;
         }
+
         calculateBalance();
+
+        // [Realtime Sync] Listen for balance changes
+        const channel = supabase
+            .channel(`balance_sync_${memberId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'hannam_memberships',
+                    filter: `member_id=eq.${memberId}`
+                },
+                () => {
+                    console.log('[Realtime] Balance changed, refreshing...');
+                    calculateBalance();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [memberId]);
 
     const calculateBalance = async () => {
@@ -57,30 +80,35 @@ export const useBalanceEngine = (memberId: string | null): BalanceEngineResult =
             let grandUsed = 0;
             let grandRemaining = 0;
 
-            // Group usages by membershipId
-            const usageMap = new Map<string, number>();
+            // [Financial Logic Unification] 
+            // RULE: Membership Total Payment - Actual Usage (Sum of Records) = Current Remaining Balance
+            // We do NOT trust the 'remaining_amount' column in the memberships table as it may be out of sync.
+            // We recalculate from atomic transaction records (CareRecords) to ensure 0 error.
+
+            // 1. Group Usage by Membership
+            const usageByMembership: Record<string, number> = {};
             allCareRecords.forEach(r => {
-                // [Financial Logic] Only signed/completed records count towards usage
-                if (r.membershipId && r.signatureStatus === 'completed') {
-                    const current = usageMap.get(r.membershipId) || 0;
-                    usageMap.set(r.membershipId, current + (r.finalPrice || 0));
+                if (r.membershipId && r.finalPrice) {
+                    usageByMembership[r.membershipId] = (usageByMembership[r.membershipId] || 0) + r.finalPrice;
                 }
             });
 
             const processedMemberships = allMemberships.map(ms => {
-                let calculatedUsage = usageMap.get(ms.id) || 0;
-                const calculatedRem = ms.totalAmount - calculatedUsage;
+                const calculatedUsed = usageByMembership[ms.id] || 0;
+                const calculatedRemaining = ms.totalAmount - calculatedUsed;
 
                 if (ms.status === 'active') {
                     grandTotal += ms.totalAmount;
-                    grandUsed += calculatedUsage;
-                    grandRemaining += calculatedRem;
+                    grandUsed += calculatedUsed;
+                    grandRemaining += calculatedRemaining; // Accumulate calculated remaining
                 }
 
                 return {
                     ...ms,
-                    calculatedRemaining: calculatedRem,
-                    usageSum: calculatedUsage
+                    usedAmount: calculatedUsed, // Override with calculated
+                    remainingAmount: calculatedRemaining, // Override with calculated
+                    calculatedRemaining: calculatedRemaining,
+                    usageSum: calculatedUsed
                 };
             });
 
@@ -98,7 +126,7 @@ export const useBalanceEngine = (memberId: string | null): BalanceEngineResult =
                     signature: r.signatureData,
                     rawRecord: r
                 })),
-                ...allReservations.filter(res => res.status !== 'completed' && res.status !== 'cancelled').map(res => ({
+                ...allReservations.filter(res => res.status !== 'COMPLETED' && res.status !== 'CANCELLED').map(res => ({
                     id: res.id,
                     type: 'reserved' as const,
                     date: res.date,

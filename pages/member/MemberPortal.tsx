@@ -590,6 +590,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
           <CareDetailModal
             record={selectedRecord}
             onClose={() => setSelectedRecord(null)}
+          // [Requirement 3] Do NOT pass currentBalance. Show 'balanceAfter' (Snapshot) logic inside Modal.
           />
         )}
 

@@ -200,13 +200,13 @@ export default function MemberManagement() {
 
   if (selectedMember) {
     // [Single Source of Truth]
-    // Calculate Stats from transactional history to guarantee consistency
-    const totalPaid = details.memberships.reduce((sum, m) => sum + m.totalAmount, 0);
-    const totalUsed = details.history.reduce((sum, h) => sum + (h.finalPrice || 0), 0);
-    const currentBalance = totalPaid - totalUsed;
+    // Use balanceEngine which implements the unified logic (Total - Sum(Usage))
+    const totalPaid = balanceEngine.totalAmount;
+    const currentBalance = balanceEngine.totalRemaining;
+    const totalUsed = balanceEngine.totalUsed;
 
-    const activeMs = details.memberships.filter(ms => ms.status === 'active');
-    const expiredMs = details.memberships.filter(ms => ms.status === 'expired');
+    const activeMs = balanceEngine.memberships.filter(ms => ms.status === 'active');
+    const expiredMs = balanceEngine.memberships.filter(ms => ms.status !== 'active');
 
     return (
       <div className="flex gap-10 page-transition pb-20 min-h-screen bg-[#F9F9F7]">

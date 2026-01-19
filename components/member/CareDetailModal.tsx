@@ -4,10 +4,11 @@ import { CareRecord } from '../../types';
 interface CareDetailModalProps {
     record: CareRecord;
     onClose: () => void;
-    adminNode?: ReactNode; // Optional right pane for Admins
+    currentBalance?: number; // [Single Source of Truth]
+    adminNode?: ReactNode;
 }
 
-const CareDetailModal: React.FC<CareDetailModalProps> = ({ record, onClose, adminNode }) => {
+const CareDetailModal: React.FC<CareDetailModalProps> = ({ record, onClose, adminNode, currentBalance }) => {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[2000] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
             <div className={`bg-[#FFFCF8] rounded-[24px] shadow-2xl w-full overflow-hidden flex flex-col max-h-[90vh] transition-all relative ${adminNode ? 'max-w-6xl' : 'max-w-[480px]'}`} onClick={e => e.stopPropagation()}>
@@ -70,7 +71,7 @@ const CareDetailModal: React.FC<CareDetailModalProps> = ({ record, onClose, admi
                                 </div>
                                 <div className="flex flex-col items-end">
                                     <span className="uppercase tracking-wider opacity-70">Remaining Balance</span>
-                                    <span className="text-sm font-serif text-[#5C544B]">₩{(record.balanceAfter || 0).toLocaleString()}</span>
+                                    <span className="text-sm font-serif text-[#5C544B]">{currentBalance !== undefined ? `₩${currentBalance.toLocaleString()}` : (record.balanceAfter ? `₩${record.balanceAfter.toLocaleString()}` : '-')}</span>
                                 </div>
                             </div>
                         </div>
