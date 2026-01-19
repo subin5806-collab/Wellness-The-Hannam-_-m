@@ -262,6 +262,14 @@ export const db = {
       return count || 0;
     },
     completeCareSession: async (record: any) => {
+      // [CRITICAL CHECK] Verify Session Validity BEFORE touching DB
+      // This prevents "RLS triggers" from firing with anon/expired session (401)
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('Session Check Failed:', authError);
+        throw new Error('보안 세션이 만료되었습니다. (401 Unauthorized)\n페이지를 새로고침하거나 다시 로그인해주세요.');
+      }
+
       // [hardened] Client-side Transaction with Integrity Check
       // 1. Check Balance & Integrity
       const { data: memberMs, error: msFetchError } = await supabase
@@ -272,13 +280,11 @@ export const db = {
 
       if (msFetchError || !memberMs) throw new Error('멤버십 정보를 찾을 수 없습니다.');
 
-      // [STRONG VALIDATION & DYNAMIC SUMMATION]
-      // Trust only Total Amount and History Sum. Ignore potentially drifted 'remaining_amount' in DB.
-
+      // [STRONG VALIDATION]
       const { data: history, error: hErr } = await supabase
         .from('hannam_care_records')
         .select('final_price')
-        .eq('membership_id', record.membershipId); // Removed is_deleted check as per schema findings
+        .eq('membership_id', record.membershipId);
 
       if (hErr) throw new Error(`이력 조회 실패: ${hErr.message}`);
 
@@ -294,11 +300,11 @@ export const db = {
       const newUsed = usageSum + record.finalPrice;
 
       // [SAFETY GUARD] Final Integrity Verification
-      // Ensure 1-won precision: Total must equal NewRemaining + NewUsed
       if (memberMs.total_amount !== (newRemaining + newUsed)) {
         throw new Error(`[CRITICAL] 무결성 검증 실패: 합산 불일치 (Total ${memberMs.total_amount} != ${newRemaining} + ${newUsed}). 저장이 차단되었습니다.`);
       }
 
+      // [STEP 1] Update Balance (Deduct)
       const { error: updateError } = await supabase
         .from('hannam_memberships')
         .update({
@@ -309,7 +315,7 @@ export const db = {
 
       if (updateError) throw new Error(`잔액 업데이트 실패: ${updateError.message}`);
 
-      // 2. Create Care Record
+      // [STEP 2] Create Care Record
       const { data: newRecord, error: insertError } = await supabase.from('hannam_care_records').insert([transformKeys({
         id: crypto.randomUUID(),
         memberId: record.memberId,
@@ -330,27 +336,33 @@ export const db = {
       }, 'toSnake')]).select();
 
       if (insertError) {
-        // Critical: Deduction happened but Record failed.
-        //Ideally we should rollback deduction here, but for now we throw.
-        console.error('CRITICAL: Record creation failed after deduction!', insertError);
-        throw new Error(`케어 기록 생성 실패 (잔액은 차감됨): ${insertError.message}`);
+        // [ROLLBACK STEP 1] Restore Balance
+        console.error('CRITICAL: Record creation failed. Rolling back balance...', insertError);
+        await supabase.from('hannam_memberships').update({
+          remaining_amount: realRemaining,
+          used_amount: usageSum
+        }).eq('id', record.membershipId);
+
+        throw new Error(`케어 기록 생성 실패 (잔액 복구됨): ${insertError.message}`);
       }
 
       const newRecordId = newRecord?.[0]?.id;
 
-      // 2. Log & Notify (Non-blocking, only if transaction succeeded)
+      // [STEP 3] Log & Notify (MUST SUCCEED for All-or-Nothing)
       try {
-        // Log to Admin Console
+        // Log to Admin Console (Blocking)
+        // Log to Admin Console (Blocking)
         await db.system.logAdminAction(
           'COMPLETE_CARE_SESSION',
           record.memberId,
-          `케어 정산 완료: ${record.finalPrice}원 차감`,
-          'balance',
-          null,
-          { deduced: record.finalPrice }
+          `케어 정산 완료: 잔액 ${realRemaining.toLocaleString()}원 -> ${newRemaining.toLocaleString()}원`,
+          'remaining_amount',
+          { remaining: realRemaining, used: usageSum },
+          { remaining: newRemaining, used: newUsed },
+          user.id // [Verified User ID] Passed explicitly to satisfy RLS
         );
 
-        // Notify Member
+        // Notify Member (Non-blocking allowed, but let's await for safety)
         await db.notifications.add({
           memberId: record.memberId,
           type: 'SIGNATURE_REQ',
@@ -359,7 +371,19 @@ export const db = {
           isRead: false
         });
       } catch (e) {
-        console.warn('Post-transaction log/notify failed:', e);
+        // [ROLLBACK STEP 2 & 1] Log Failed -> Undo Record & Balance
+        console.error('CRITICAL: Logging failed. Rolling back everything.', e);
+
+        // 1. Delete the created record
+        await supabase.from('hannam_care_records').delete().eq('id', newRecordId);
+
+        // 2. Restore Balance
+        await supabase.from('hannam_memberships').update({
+          remaining_amount: realRemaining,
+          used_amount: usageSum
+        }).eq('id', record.membershipId);
+
+        throw new Error('시스템 로그 기록 실패로 인해 거래가 취소되었습니다. (보안 정책 준수)');
       }
 
       return newRecordId;
@@ -583,10 +607,24 @@ export const db = {
     }
   },
   system: {
-    logAdminAction: async (action: string, memberId: string | null, details: string, field?: string, oldValue?: any, newValue?: any) => {
-      const saved = localStorage.getItem('hannam_auth_session');
-      const auth = saved ? JSON.parse(saved) : null;
-      const adminEmail = auth?.email || 'unknown';
+    logAdminAction: async (action: string, memberId: string | null, details: string, field?: string, oldValue?: any, newValue?: any, explicitUserId?: string) => {
+      // [FIX] Security: Use provided ID or fetch verifying User ID from Supabase Auth
+      let userId = explicitUserId;
+      let userEmail = 'unknown';
+
+      if (userId) {
+        const saved = localStorage.getItem('hannam_auth_session');
+        const auth = saved ? JSON.parse(saved) : null;
+        userEmail = auth?.email || 'unknown';
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          userId = user.id;
+          userEmail = user.email || 'unknown';
+        } else {
+          console.warn("[AdminLog] No active Supabase session found. This usually means the session expired (401). Please re-login.");
+        }
+      }
 
       // [SIMPLIFIED LOGIC] Direct Insert Only (No RPC)
       // [TYPE CONSISTENCY] Always JSON.stringify old/new values to avoid mismatch with TEXT columns
@@ -596,8 +634,9 @@ export const db = {
       const { error: insertError } = await supabase.from('hannam_admin_action_logs').insert([{
         // Let DB generate UUID: id is omitted
         // id: `LOG-${Date.now()}`, 
-        admin_email: adminEmail,
-        action,
+        admin_id: userId, // [CRITICAL] RLS Requirement: Must match auth.uid()
+        admin_email: userEmail,
+        action_type: action, // [FIX] Schema Column Name Mismatch (action -> action_type)
         member_id: memberId,
         target_member_id: memberId,
         details,
@@ -730,12 +769,16 @@ export const db = {
       await supabase.from('hannam_notifications').update({ is_read: true }).eq('id', id);
     },
     add: async (noti: any) => {
+      // [FIX] Explicit filtering: 'type' column does not exist in schema, so we do not send it.
       const { data, error } = await supabase.from('hannam_notifications').insert([transformKeys({
         id: `NOTI-${Date.now()}`,
-        ...noti,
+        memberId: noti.memberId,
+        title: noti.title,
+        content: noti.content,
         isRead: false,
         createdAt: new Date().toISOString()
       }, 'toSnake')]).select();
+
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel') as Notification;
     }

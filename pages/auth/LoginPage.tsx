@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, hashPassword } from '../../db';
+import { db, hashPassword, supabase } from '../../db';
 
 interface LoginPageProps {
   onLogin: (type: 'admin' | 'member', id: string, email?: string) => void;
@@ -50,7 +50,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     try {
       const cleanPhone = signupData.phone.replace(/[^0-9]/g, '');
       const existing = await db.members.getByPhoneFromServer(cleanPhone);
-      
+
       if (existing) {
         alert('이미 등록된 회원입니다. 로그인 페이지로 이동하여 초기 비밀번호(핸드폰 끝 4자리)로 접속해 주세요.');
         setPhone(cleanPhone);
@@ -116,29 +116,36 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     setError('');
     setIsLoading(true);
     try {
-      let adminData = null;
       const cleanPassword = password.trim();
       const cleanEmail = adminEmailInput.trim();
 
-      if (cleanEmail === 'help@thehannam.com' && cleanPassword === 'lucete800134') {
-        adminData = { id: 'admin-master', email: cleanEmail };
-      } else {
-        const admin = await db.admins.getByEmail(cleanEmail);
-        if (admin) {
-          const hashedInput = await hashPassword(cleanPassword);
-          if (admin.password === hashedInput) {
-            adminData = { id: admin.id, email: admin.email };
-          }
+      // [FIX] 1. Attempt Supabase Auth Login (Primary Source of Truth for RLS)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword
+      });
+
+      if (authError) {
+        // Fallback or specific error handling
+        console.warn("Supabase Auth Error:", authError);
+        if (authError.message === 'Invalid login credentials') {
+          throw new Error('이메일이 없거나 비밀번호가 틀렸습니다.\n(초기 계정이 없다면 관리자에게 등록을 요청하세요)');
         }
+        throw new Error(authError.message);
       }
 
-      if (adminData) {
-        onLogin('admin', adminData.id, adminData.email);
+      if (authData.user) {
+        // [FIX] 2. Success - Session established.
+        onLogin('admin', authData.user.id, authData.user.email);
         navigate('/admin');
       } else {
-        setError('관리자 정보가 일치하지 않습니다.');
+        throw new Error("로그인 세션을 획득하지 못했습니다.");
       }
+
     } catch (err: any) {
+      // [SECURITY FIX] Removed hardcoded fallback. 
+      // All admins MUST authenticate via Supabase to establish RLS session.
+      console.error("Login Error:", err);
       setError(`[관리자 로그인 오류] ${getErrorMessage(err)}`);
     } finally {
       setIsLoading(false);
@@ -197,23 +204,23 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             <form onSubmit={handleSignup} className="space-y-4">
               <h2 className="text-2xl font-bold text-center text-[#2F3A32] mb-6 font-serif italic uppercase tracking-tight">Registration</h2>
               <div className="grid grid-cols-2 gap-4">
-                <input type="text" placeholder="성함" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.name} onChange={(e) => setSignupData({...signupData, name: e.target.value})} required />
+                <input type="text" placeholder="성함" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.name} onChange={(e) => setSignupData({ ...signupData, name: e.target.value })} required />
                 <div className="flex bg-[#F9FAFB] border rounded-2xl p-1">
-                  <button type="button" onClick={() => setSignupData({...signupData, gender: '여성'})} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${signupData.gender === '여성' ? 'bg-[#2F3A32] text-white shadow-md' : 'text-slate-400'}`}>여성</button>
-                  <button type="button" onClick={() => setSignupData({...signupData, gender: '남성'})} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${signupData.gender === '남성' ? 'bg-[#2F3A32] text-white shadow-md' : 'text-slate-400'}`}>남성</button>
+                  <button type="button" onClick={() => setSignupData({ ...signupData, gender: '여성' })} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${signupData.gender === '여성' ? 'bg-[#2F3A32] text-white shadow-md' : 'text-slate-400'}`}>여성</button>
+                  <button type="button" onClick={() => setSignupData({ ...signupData, gender: '남성' })} className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${signupData.gender === '남성' ? 'bg-[#2F3A32] text-white shadow-md' : 'text-slate-400'}`}>남성</button>
                 </div>
               </div>
-              <input type="tel" placeholder="연락처 (- 제외)" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.phone} onChange={(e) => setSignupData({...signupData, phone: e.target.value})} required />
+              <input type="tel" placeholder="연락처 (- 제외)" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.phone} onChange={(e) => setSignupData({ ...signupData, phone: e.target.value })} required />
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-[#A58E6F] uppercase ml-4 tracking-widest">생년월일 (YYYY-MM-DD)</label>
-                <input type="date" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.birthDate} onChange={(e) => setSignupData({...signupData, birthDate: e.target.value})} required />
+                <input type="date" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.birthDate} onChange={(e) => setSignupData({ ...signupData, birthDate: e.target.value })} required />
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-[#A58E6F] uppercase ml-4 tracking-widest">이메일 주소</label>
-                <input type="email" placeholder="example@thehannam.com" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.email} onChange={(e) => setSignupData({...signupData, email: e.target.value})} required />
+                <input type="email" placeholder="example@thehannam.com" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.email} onChange={(e) => setSignupData({ ...signupData, email: e.target.value })} required />
               </div>
-              <input type="password" placeholder="비밀번호" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.password} onChange={(e) => setSignupData({...signupData, password: e.target.value})} required />
-              <input type="password" placeholder="비밀번호 확인" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.confirmpassword} onChange={(e) => setSignupData({...signupData, confirmpassword: e.target.value})} required />
+              <input type="password" placeholder="비밀번호" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.password} onChange={(e) => setSignupData({ ...signupData, password: e.target.value })} required />
+              <input type="password" placeholder="비밀번호 확인" className="w-full px-6 py-4 bg-[#F9FAFB] border rounded-2xl outline-none text-sm" value={signupData.confirmpassword} onChange={(e) => setSignupData({ ...signupData, confirmpassword: e.target.value })} required />
               <div className="pt-6 space-y-4">
                 <button type="submit" disabled={isLoading} className={signupBtnStyle}>
                   {isLoading ? '정보 저장 중...' : '가입 완료'}
