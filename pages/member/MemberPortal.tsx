@@ -586,79 +586,12 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
         }
 
         {/* Care Note Detail Modal */}
-        {
-          selectedRecord && (
-            <div className="fixed inset-0 bg-[#1A3C34]/95 backdrop-blur-3xl z-[2000] flex items-center justify-center p-8 animate-in fade-in duration-500">
-              <div className="bg-white rounded-[56px] w-full max-w-sm overflow-hidden flex flex-col luxury-shadow animate-in zoom-in-95">
-                <header className="p-10 border-b flex justify-between items-start bg-slate-50/50">
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest">{selectedRecord.date}</p>
-                    <h3 className="text-2xl font-bold text-[#1A3C34] leading-tight">
-                      {programs.find(p => p.id === selectedRecord.programId)?.name || 'Wellness Care Note'}
-                    </h3>
-                  </div>
-                  <button onClick={() => setSelectedRecord(null)} className="text-slate-300 hover:text-[#1A3C34] transition-all">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </header>
-                <div className="p-10 space-y-10 overflow-y-auto max-h-[60vh] no-scrollbar">
-                  <div className="space-y-4">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Core Insight</label>
-                    <p className="text-[16px] font-bold text-[#1A3C34] leading-relaxed italic border-l-4 border-[#A58E6F] pl-6">"{selectedRecord.noteSummary}"</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Wellness Care Note</label>
-                    <div className="p-6 bg-[#F9F9FB] rounded-2xl text-[14px] text-[#2F3A32] leading-relaxed font-medium whitespace-pre-wrap">
-                      {selectedRecord.noteDetails || '상세 기록이 없습니다.'}
-                    </div>
-                  </div>
-
-                  {selectedRecord.noteRecommendation && (
-                    <div className="space-y-4">
-                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Manager Message</label>
-                      <p className="text-[14px] text-slate-600 leading-relaxed bg-[#FFF9F2] p-6 rounded-2xl border border-[#F2E8DA]">
-                        {selectedRecord.noteRecommendation}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="pt-8 border-t border-slate-50 space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">Used Amount</label>
-                        <p className="text-[16px] font-bold text-rose-400 tabular-nums">-₩{Math.floor(selectedRecord.finalPrice).toLocaleString()}</p>
-                      </div>
-                      <div className="space-y-2 text-right">
-                        <label className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">Balance After</label>
-                        <p className="text-[16px] font-bold text-emerald-600 tabular-nums">₩{Math.floor(selectedRecord.balanceAfter || 0).toLocaleString()}</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block">Certification</label>
-                      <div className="w-full aspect-[2/1] bg-slate-50 rounded-[32px] flex items-center justify-center border border-slate-100 p-8 shadow-inner">
-                        {selectedRecord.signatureData ? (
-                          <img src={selectedRecord.signatureData} className="w-full h-full object-contain opacity-80" alt="Verification Signature" />
-                        ) : (
-                          <span className="text-[11px] text-slate-300 font-bold italic">Verification Signature Pending</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <footer className="p-10 bg-white">
-                  <button
-                    onClick={() => setSelectedRecord(null)}
-                    className="w-full py-6 bg-[#1A3C34] text-white rounded-[28px] font-bold uppercase text-[11px] tracking-[0.3em]"
-                  >
-                    Close Archive
-                  </button>
-                </footer>
-              </div>
-            </div>
-          )
-        }
+        {selectedRecord && (
+          <CareDetailModal
+            record={selectedRecord}
+            onClose={() => setSelectedRecord(null)}
+          />
+        )}
 
         {/* Password Modal */}
         {

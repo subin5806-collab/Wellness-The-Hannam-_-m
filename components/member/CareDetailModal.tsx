@@ -9,55 +9,70 @@ interface CareDetailModalProps {
 
 const CareDetailModal: React.FC<CareDetailModalProps> = ({ record, onClose, adminNode }) => {
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[2000] flex items-center justify-center p-8 animate-in fade-in duration-200">
-            <div className={`bg-white rounded-[40px] shadow-2xl w-full overflow-hidden flex flex-col max-h-[90vh] transition-all ${adminNode ? 'max-w-6xl' : 'max-w-lg'}`}>
-                <header className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                    <div>
-                        <p className="text-[10px] font-bold text-[#A58E6F] uppercase tracking-widest">{record.date}</p>
-                        <h3 className="text-xl font-bold text-[#1A3C34] mt-1">{record.noteSummary}</h3>
-                    </div>
-                    <button onClick={onClose} className="w-10 h-10 rounded-full bg-white border border-slate-100 flex items-center justify-center text-slate-400 hover:text-[#1A3C34] transition-colors">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </header>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[2000] flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
+            <div className={`bg-[#FFFCF8] rounded-[24px] shadow-2xl w-full overflow-hidden flex flex-col max-h-[90vh] transition-all relative ${adminNode ? 'max-w-6xl' : 'max-w-[480px]'}`} onClick={e => e.stopPropagation()}>
 
-                <div className={`flex-1 overflow-y-auto ${adminNode ? 'grid grid-cols-2 divide-x divide-slate-100' : ''}`}>
-                    {/* LEFT: Member View */}
-                    <div className="p-8 space-y-8">
-                        <div className="space-y-3">
-                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Detail Note</label>
-                            <div className="p-6 bg-[#F9F9FB] rounded-2xl text-[14px] text-[#2F3A32] leading-relaxed font-medium whitespace-pre-wrap">
-                                {record.noteDetails || '상세 기록이 없습니다.'}
+                {/* Close Button - Absolute Positioned */}
+                <button
+                    onClick={onClose}
+                    className="absolute top-6 right-6 z-[50] w-10 h-10 rounded-full bg-black/5 hover:bg-black/10 flex items-center justify-center text-slate-500 transition-colors pointer-events-auto cursor-pointer"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+
+                <div className={`flex-1 overflow-y-auto ${adminNode ? 'grid grid-cols-2 divide-x divide-stone-100' : ''}`}>
+                    {/* LEFT: Member View - Letter Style */}
+                    <div className="flex flex-col h-full">
+                        {/* 1. Header (Minimal - Date Only) */}
+                        <div className="pt-10 px-8 pb-0 text-center relative z-20">
+                            <p className="text-[11px] text-[#A58E6F] font-bold uppercase tracking-[0.1em]">{record.date}</p>
+                        </div>
+
+                        {/* 2. Content (Two Main Sections: Summary & Recs) */}
+                        <div className="flex-1 px-10 py-8 overflow-y-auto flex flex-col space-y-12">
+
+                            {/* Section 1: Summary */}
+                            <div className="space-y-6 text-center">
+                                <label className="text-[11px] text-[#A58E6F] font-bold uppercase tracking-[0.2em] block border-b border-[#F2EFE9] pb-3 mx-10">오늘의 케어 요약</label>
+                                <h2 className="text-2xl md:text-3xl font-serif-luxury font-medium text-[#1A3C34] leading-relaxed break-keep whitespace-pre-wrap">
+                                    {record.noteSummary || "요약 내용이 없습니다."}
+                                </h2>
+                            </div>
+
+                            {/* Section 2: Recommendation */}
+                            <div className="space-y-6 text-center">
+                                <label className="text-[11px] text-[#A58E6F] font-bold uppercase tracking-[0.2em] block border-b border-[#F2EFE9] pb-3 mx-10">향후 추천 사항</label>
+                                <p className="text-[18px] text-[#5C544B] font-serif leading-loose whitespace-pre-wrap">
+                                    {record.noteRecommendation || "추천 사항이 없습니다."}
+                                </p>
                             </div>
                         </div>
 
-                        {record.noteRecommendation && (
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Recommendation</label>
-                                <p className="text-sm text-slate-600">{record.noteRecommendation}</p>
+                        {/* 3. Footer (Financials & Signature) */}
+                        <div className="bg-white/50 border-t border-[#F2EFE9] p-6 space-y-6">
+                            {/* Signature Area */}
+                            <div className="flex flex-col items-center justify-center space-y-2">
+                                {record.signatureData ? (
+                                    <div className="relative">
+                                        <img src={record.signatureData} alt="Signature" className="h-10 opacity-80" />
+                                        <div className="absolute -bottom-2 w-full h-[1px] bg-[#E5E0D8]"></div>
+                                    </div>
+                                ) : (
+                                    <div className="text-[10px] text-stone-300 tracking-widest uppercase border-b border-stone-200 pb-1">Waiting for Signature</div>
+                                )}
                             </div>
-                        )}
 
-                        <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-50">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">결제 금액</label>
-                                <p className="text-lg font-bold text-[#2F3A32]">₩{record.finalPrice.toLocaleString()}</p>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">사용 후 잔액</label>
-                                <p className="text-lg font-bold text-emerald-600">₩{(record.balanceAfter || 0).toLocaleString()}</p>
-                            </div>
-                        </div>
-
-                        <div className="pt-6 border-t border-slate-50 space-y-4">
-                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Member Signature</label>
-                            {record.signatureData ? (
-                                <div className="border border-slate-100 rounded-2xl p-4 bg-white flex justify-center">
-                                    <img src={record.signatureData} className="h-16 object-contain" />
+                            {/* Financial Info (Subtle) */}
+                            <div className="flex justify-between items-end text-[10px] text-[#B0A69B] px-4">
+                                <div className="flex flex-col">
+                                    <span className="uppercase tracking-wider opacity-70">Used</span>
+                                    <span className="font-medium">-₩{record.finalPrice.toLocaleString()}</span>
                                 </div>
-                            ) : (
-                                <div className="p-4 bg-slate-50 rounded-2xl text-center text-[11px] text-slate-300 font-bold">서명 없음</div>
-                            )}
+                                <div className="flex flex-col items-end">
+                                    <span className="uppercase tracking-wider opacity-70">Remaining Balance</span>
+                                    <span className="text-sm font-serif text-[#5C544B]">₩{(record.balanceAfter || 0).toLocaleString()}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
