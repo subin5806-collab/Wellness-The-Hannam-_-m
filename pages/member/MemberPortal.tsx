@@ -127,7 +127,8 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
   const activeMs = memberships.find(m => m.status === 'active');
 
   // Clean View Data
-  const currentDiscountRate = activeMs ? activeMs.defaultDiscountRate : 0;
+  const currentDiscountRate = activeMs ? ((activeMs as any).default_discount_rate || activeMs.defaultDiscountRate || 0) : 0;
+
 
   const activeProduct = useMemo(() => msProducts.find(p => p.id === activeMs?.productId || p.name === activeMs?.productName), [msProducts, activeMs]);
 

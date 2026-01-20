@@ -79,7 +79,13 @@ const CareHistorySplitPage: React.FC = () => {
                 {/* Right: Private Note Editor */}
                 <div className="col-span-7 h-full">
                     {selectedRecord ? (
-                        <PrivateNoteEditor careRecordId={selectedRecord.id} className="h-full shadow-md" />
+                        <PrivateNoteEditor
+                            careRecordId={selectedRecord.id}
+                            initialSummary={selectedRecord.noteSummary || ''}
+                            initialRecommendation={selectedRecord.noteRecommendation || ''}
+                            onUpdate={loadData}
+                            className="h-full shadow-md"
+                        />
                     ) : (
                         <div className="h-full bg-white rounded-[32px] border border-slate-100 flex items-center justify-center text-slate-300 font-bold italic">
                             좌측 목록에서 케어 기록을 선택해주세요.

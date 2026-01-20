@@ -155,10 +155,32 @@ export const db = {
       }, 'toSnake')]).select();
 
       if (error) {
-        if (error.code === '23505') throw new Error('이미 등록된 회원 정보(ID/연락처)입니다.');
+        if (error.code === '23505' || error.message?.includes('duplicate key') || error.code === '409') {
+          throw new Error(`[등록 실패] 이미 존재하는 연락처/ID 입니다.\n\n만약 방금 삭제한 회원이라면, '영구 삭제(Hard Delete)'가 완전히 처리되지 않았을 수 있습니다.\n관리자에게 문의하거나 잠시 후 다시 시도해주세요.`);
+        }
         throw error;
       }
       return transformKeys(data?.[0], 'toCamel');
+    },
+    delete: async (id: string) => {
+      // [HARD DELETE] Atomic Deletion via Database Function (RPC)
+      console.log(`[Hard Delete] Invoking RPC hard_delete_member for ${id}...`);
+
+      const { error } = await supabase.rpc('hard_delete_member', { p_member_id: id });
+
+      if (error) {
+        console.error('[Hard Delete] RPC Failed:', error);
+        // Fallback or detailed error message
+        throw new Error(`영구 삭제 실패 (DB Error): ${error.message}`);
+      }
+
+      // [VERIFICATION] Double Check
+      const { data: check } = await supabase.from('hannam_members').select('id').eq('id', id).maybeSingle();
+      if (check) {
+        console.error('[Hard Delete] CRITICAL: Member still exists after delete RPC!', check);
+        throw new Error('시스템 오류: 삭제 명령이 실행되었으나 데이터가 남아있습니다. 관리자에게 문의하세요.');
+      }
+      console.log('[Hard Delete] Validation: Record is gone.');
     },
     getPublicProfile: async (id: string) => {
       // [ARCHITECTURE] ID is now strictly Phone Number (TEXT)
@@ -239,6 +261,15 @@ export const db = {
       if (error) throw error;
 
       await db.system.logAdminAction('UPDATE_MEMBERSHIP_EXPIRY', oldMs?.member_id || null, `만료일 수정: ${oldMs?.expiry_date} -> ${newExpiry}`, 'expiry_date', { expiry_date: oldMs?.expiry_date }, { expiry_date: newExpiry });
+    },
+    getAllRealBalances: async () => {
+      const { data } = await supabase.from('hannam_membership_real_balances').select('member_id, calculated_remaining_amount');
+      const balanceMap: Record<string, number> = {};
+      data?.forEach((row: any) => {
+        const val = row.calculated_remaining_amount || 0;
+        balanceMap[row.member_id] = (balanceMap[row.member_id] || 0) + val;
+      });
+      return balanceMap;
     }
   },
   careRecords: {

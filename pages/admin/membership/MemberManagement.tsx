@@ -25,6 +25,7 @@ export default function MemberManagement() {
   const [members, setMembers] = useState<Member[]>([]);
   const [allMemberships, setAllMemberships] = useState<Membership[]>([]);
   const [membershipProducts, setMembershipProducts] = useState<MembershipProduct[]>([]);
+  const [realBalances, setRealBalances] = useState<Record<string, number>>({});
 
   const [searchTerm, setSearchTerm] = useState('');
   const [expiryFilter, setExpiryFilter] = useState('');
@@ -49,6 +50,7 @@ export default function MemberManagement() {
 
   const [showGrantMembershipModal, setShowGrantMembershipModal] = useState(false);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [isEditingHistory, setIsEditingHistory] = useState(false); // [NEW]
   const [editHistoryForm, setEditHistoryForm] = useState<Partial<CareRecord>>({}); // [NEW]
@@ -73,14 +75,16 @@ export default function MemberManagement() {
   const fetchMembers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [allMembers, allMps, allMsProducts] = await Promise.all([
+      const [allMembers, allMps, allMsProducts, balances] = await Promise.all([
         db.members.getAll(),
         db.memberships.getAll(),
-        db.master.membershipProducts.getAll()
+        db.master.membershipProducts.getAll(),
+        db.memberships.getAllRealBalances()
       ]);
       setMembers(allMembers || []);
       setAllMemberships(allMps || []);
       setMembershipProducts(allMsProducts || []);
+      setRealBalances(balances || {});
     } catch (e: any) { alert(e.message); }
     finally { setIsLoading(false); }
   }, []);
@@ -107,7 +111,7 @@ export default function MemberManagement() {
       const latestExpiry = memberMs.length > 0
         ? memberMs.reduce((prev, curr) => (prev.expiryDate || '') > (curr.expiryDate || '') ? prev : curr).expiryDate
         : '';
-      const totalBalance = memberMs.reduce((sum, ms) => sum + ms.remainingAmount, 0);
+      const totalBalance = realBalances[m.id] ?? 0;
 
       const matchExpiry = expiryFilter ? (latestExpiry && latestExpiry <= expiryFilter) : true;
       const matchBalance = balanceFilter !== '' ? totalBalance <= balanceFilter : true;
@@ -211,10 +215,11 @@ export default function MemberManagement() {
     return (
       <div className="flex gap-10 page-transition pb-20 min-h-screen bg-[#F9F9F7]">
         {/* Left Sidebar: Profile & Info */}
-        <aside className="w-[340px] bg-white rounded-[40px] border border-slate-100 shadow-[0_10px_40px_rgba(0,0,0,0.03)] p-12 flex flex-col sticky top-10 self-start">
+        <aside className="w-[340px] bg-white rounded-[40px] border border-slate-100 shadow-[0_10px_40px_rgba(0,0,0,0.03)] p-12 flex flex-col sticky top-10 self-start z-30 relative">
           <div className="mb-12">
             <h3 className="text-3xl font-bold text-[#2F3A32] mb-2">{selectedMember.name}</h3>
             <p className="text-[11px] text-[#A58E6F] font-bold uppercase tracking-[0.2em]">Member Profile Details</p>
+            <p className="text-[9px] text-slate-200 mt-1 font-mono">ID: {selectedMember.id}</p>
           </div>
 
           <div className="w-full space-y-7">
@@ -271,15 +276,10 @@ export default function MemberManagement() {
               <button onClick={() => { setSelectedMember(null); navigate('/admin/members'); }} className="py-4 bg-[#2F3A32] text-white rounded-2xl text-[11px] font-bold hover:bg-[#1A3C34] transition-all shadow-lg hover:shadow-xl">뒤로가기</button>
             </div>
             <button
-              onClick={async () => {
-                if (confirm('정말로 이 회원을 삭제하시겠습니까? 데이터는 즉시 아카이브됩니다.')) {
-                  try {
-                    await db.members.update(selectedMember.id, { isDeleted: true });
-                    alert('회원이 삭제되었습니다.');
-                    setSelectedMember(null);
-                    fetchMembers();
-                  } catch (e: any) { alert(e.message); }
-                }
+              type="button"
+              onClick={() => {
+                console.log('Delete button clicked');
+                setShowDeleteModal(true);
               }}
               className="w-full py-4 text-[9px] font-bold text-rose-300 hover:text-rose-500 transition-colors uppercase tracking-[0.2em]"
             >
@@ -300,7 +300,13 @@ export default function MemberManagement() {
               <div className="flex flex-col gap-1 pr-10 border-r border-slate-50">
                 <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">적용 할인율</p>
                 <h4 className="text-xl font-bold text-emerald-600">
-                  {activeMs[0] ? `${membershipProducts.find(p => p.id === activeMs[0].productId)?.defaultDiscountRate || 0}%` : '0%'}
+                  {(() => {
+                    const ms = activeMs[0];
+                    if (!ms) return '0%';
+                    // [Modified] Use raw DB field default_discount_rate first
+                    const rate = (ms as any).default_discount_rate || ms.defaultDiscountRate || 0;
+                    return `${rate}%`;
+                  })()}
                 </h4>
               </div>
               <div className="flex gap-12">
@@ -359,7 +365,6 @@ export default function MemberManagement() {
                                 <h6 className="text-xl font-bold text-[#2F3A32]">{ms.productName}</h6>
                                 <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium">
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                  더한남80 가산
                                 </div>
                                 <div className="flex items-center gap-2 text-[11px] text-slate-400 font-medium pt-1">
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 00-2 2z" /></svg>
@@ -631,6 +636,82 @@ export default function MemberManagement() {
             </div>
           </div>
         )}
+
+        {/* Member Registration Modal (Edit Mode) */}
+        {showRegistrationModal && (
+          <MemberRegistrationModal
+            initialData={editingMember}
+            onClose={() => {
+              setShowRegistrationModal(false);
+              setEditingMember(null);
+            }}
+            onSuccess={() => {
+              setShowRegistrationModal(false);
+              setEditingMember(null);
+              // If we are editing the currently selected member, refresh their details
+              if (selectedMember && editingMember?.id === selectedMember.id) {
+                // Fetch updated member data
+                db.members.getById(selectedMember.id).then(updated => {
+                  if (updated) setSelectedMember(updated);
+                });
+              } else {
+                fetchMembers();
+              }
+            }}
+          />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && selectedMember && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[9000] flex items-center justify-center p-8">
+            <div className="bg-white p-16 rounded-[60px] max-w-2xl w-full text-center space-y-10 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+              {/* Warning Header */}
+              <div className="flex flex-col items-center gap-6">
+                <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mb-2">
+                  <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <h4 className="text-3xl font-bold text-[#2F3A32]">영구 삭제 확인</h4>
+              </div>
+
+              {/* Critical Message */}
+              <div className="space-y-4">
+                <p className="text-lg font-bold text-rose-500 px-6 py-4 bg-rose-50 rounded-2xl border border-rose-100">
+                  영구 삭제 시 복구가 불가능하며<br />모든 케어 기록과 결제 내역이 삭제됩니다.
+                </p>
+                <p className="text-[14px] text-slate-500 font-medium">
+                  정말로 <strong>{selectedMember.name}</strong> 회원님의 모든 정보를 삭제하시겠습니까?
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteModal(false)}
+                  className="py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-bold transition-all text-[15px]"
+                >
+                  취소 (돌아가기)
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await db.members.delete(selectedMember.id);
+                      alert('회원 정보가 영구적으로 삭제되었습니다.');
+                      setShowDeleteModal(false);
+                      setSelectedMember(null);
+                      fetchMembers();
+                      navigate('/admin/members');
+                    } catch (e: any) { alert(e.message); }
+                  }}
+                  className="py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-3xl font-bold shadow-lg hover:shadow-xl transition-all text-[15px]"
+                >
+                  삭제 확정
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -697,7 +778,7 @@ export default function MemberManagement() {
           <tbody className="divide-y divide-slate-50">
             {filteredMembers.map(m => {
               const ms = allMemberships.filter(ms => ms.memberId === m.id && ms.status === 'active');
-              const totalBal = ms.reduce((sum, curr) => sum + curr.remainingAmount, 0);
+              const totalBal = realBalances[m.id] ?? 0;
               const latestExp = ms.length > 0 ? ms.reduce((prev, curr) => (prev.expiryDate || '') > (curr.expiryDate || '') ? prev : curr).expiryDate : '-';
               return (
                 <tr key={m.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -754,6 +835,55 @@ export default function MemberManagement() {
             fetchMembers();
           }}
         />
+      )}
+
+      {/* [NEW] Hard Delete Double-Check Modal */}
+      {showDeleteModal && selectedMember && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[9000] flex items-center justify-center p-8">
+          <div className="bg-white p-16 rounded-[60px] max-w-2xl w-full text-center space-y-10 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+            {/* Warning Header */}
+            <div className="flex flex-col items-center gap-6">
+              <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mb-2">
+                <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              </div>
+              <h4 className="text-3xl font-bold text-[#2F3A32]">영구 삭제 확인</h4>
+            </div>
+
+            {/* Critical Message */}
+            <div className="space-y-4">
+              <p className="text-lg font-bold text-rose-500 px-6 py-4 bg-rose-50 rounded-2xl border border-rose-100">
+                영구 삭제 시 복구가 불가능하며<br />모든 케어 기록과 결제 내역이 삭제됩니다.
+              </p>
+              <p className="text-[14px] text-slate-500 font-medium">
+                정말로 <strong>{selectedMember.name}</strong> 회원님의 모든 정보를 삭제하시겠습니까?
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-4 pt-4">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-bold transition-all text-[15px]"
+              >
+                취소 (돌아가기)
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await db.members.delete(selectedMember.id);
+                    alert('회원 정보가 영구적으로 삭제되었습니다.');
+                    setShowDeleteModal(false);
+                    setSelectedMember(null);
+                    fetchMembers();
+                  } catch (e: any) { alert(e.message); }
+                }}
+                className="py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-3xl font-bold shadow-lg hover:shadow-xl transition-all text-[15px]"
+              >
+                삭제 확정
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
