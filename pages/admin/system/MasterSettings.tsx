@@ -37,7 +37,11 @@ const MasterSettings: React.FC = () => {
   // [Excel Export]
   const handleExcelExport = async (type: 'MEMBERS' | 'RESERVATIONS' | 'SALES' | 'CONSULTATIONS') => {
     if (!masterLockVerified) {
-      alert('마스터 보안 잠금을 해제해야 다운로드할 수 있습니다.');
+      setAuthInput('');
+      setShowAuthModal({
+        open: true,
+        onChevron: () => handleExcelExport(type)
+      });
       return;
     }
     setIsProcessing(true);
@@ -475,6 +479,7 @@ const MasterSettings: React.FC = () => {
   const handleAuthConfirm = () => {
     // Legacy Modal (Data Hub Access) - Verify against Master Password
     if (authInput === securityConfig.masterPassword) {
+      setMasterLockVerified(true);
       showAuthModal.onChevron();
       setShowAuthModal({ ...showAuthModal, open: false });
       setAuthInput('');
@@ -887,10 +892,10 @@ const MasterSettings: React.FC = () => {
                       <button
                         key={item.type}
                         onClick={() => handleExcelExport(item.type as any)}
-                        disabled={!masterLockVerified || isProcessing}
+                        disabled={isProcessing}
                         className={`py-8 rounded-[24px] border border-white/10 flex flex-col items-center gap-3 transition-all ${!masterLockVerified
-                          ? 'bg-white/5 opacity-50 cursor-not-allowed hover:bg-white/5'
-                          : 'bg-white/10 hover:bg-white/20 hover:scale-105 active:scale-95'
+                            ? 'bg-white/5 opacity-70 hover:bg-white/10 hover:opacity-100'
+                            : 'bg-white/10 hover:bg-white/20 hover:scale-105 active:scale-95'
                           }`}
                       >
                         <span className="text-3xl filter drop-shadow-lg">{item.icon}</span>
