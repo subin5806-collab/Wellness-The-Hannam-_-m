@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, Filter, Search, Plus, Calendar, Settings, Shield, UserX, Download, Upload, Lock, Key, ShieldCheck, X } from 'lucide-react';
+import { ChevronRight, Filter, Search, Plus, Calendar, Settings, Shield, UserX, Download, Upload, Lock, Key, ShieldCheck, X, FileSpreadsheet } from 'lucide-react';
 import { db, hashPassword } from '../../../db';
 import { Program, MembershipProduct, Manager, Admin, SystemBackup, Category } from '../../../types';
 import * as XLSX from 'xlsx';
@@ -33,6 +33,108 @@ const MasterSettings: React.FC = () => {
   const [masterLockVerified, setMasterLockVerified] = useState(false);
   const [masterInput, setMasterInput] = useState({ password: '', authCode: '' });
   const [newMasterForm, setNewMasterForm] = useState({ password: '', authCode: '' });
+
+  // [Excel Export]
+  const handleExcelExport = async (type: 'MEMBERS' | 'RESERVATIONS' | 'SALES' | 'CONSULTATIONS') => {
+    if (!masterLockVerified) {
+      alert('마스터 보안 잠금을 해제해야 다운로드할 수 있습니다.');
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      // Common: Member Lookup Map
+      const members = await db.members.getAll();
+      const memberMap = new Map(members.map(m => [m.id, m]));
+      const getMemberName = (id: string) => memberMap.get(id)?.name || '삭제된 회원';
+      const getMemberPhone = (id: string) => memberMap.get(id)?.phone || '-';
+
+      let data: any[] = [];
+      let filename = '';
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+
+      if (type === 'MEMBERS') {
+        filename = `회원명단_${timestamp}.xlsx`;
+        // Enhance with Balance
+        const memberships = await db.memberships.getAll();
+        const balanceMap = new Map();
+        memberships.forEach(ms => {
+          const current = balanceMap.get(ms.memberId) || 0;
+          balanceMap.set(ms.memberId, current + ms.remainingAmount);
+        });
+
+        data = members.map(m => ({
+          '회원명': m.name,
+          '전화번호': m.phone,
+          '성별': m.gender,
+          '생년월일': m.birthDate,
+          '등급': '일반',
+          '잔액': (balanceMap.get(m.id) || 0).toLocaleString(),
+          '관리자메모': m.adminMemo
+        }));
+
+      } else if (type === 'RESERVATIONS') {
+        filename = `예약내역_${timestamp}.xlsx`;
+        const [res, progs, mgrs] = await Promise.all([
+          db.reservations.getAll(),
+          db.master.programs.getAll(),
+          db.master.managers.getAll()
+        ]);
+        const progMap = new Map(progs.map(p => [p.id, p]));
+        const mgrMap = new Map(mgrs.map(m => [m.id, m]));
+
+        data = res.map((r: any) => ({
+          '예약일자': r.date,
+          '예약시간': r.time,
+          '회원명': getMemberName(r.memberId),
+          '전화번호': getMemberPhone(r.memberId),
+          '프로그램': progMap.get(r.programId)?.name || '알 수 없음',
+          '담당관리사': mgrMap.get(r.managerId)?.name || '-',
+          '상태': r.status,
+          '메모': r.adminMemo || ''
+        }));
+      } else if (type === 'SALES') {
+        filename = `매출(멤버십)_${timestamp}.xlsx`;
+        const sales = await db.memberships.getAll();
+        data = sales.map(s => ({
+          '회원명': getMemberName(s.memberId),
+          '전화번호': getMemberPhone(s.memberId),
+          '상품명': s.productName,
+          '결제금액': s.totalAmount,
+          '사용금액': s.usedAmount,
+          '잔액': s.remainingAmount,
+          '등록일': s.createdAt,
+          '만료일': s.expiryDate
+        }));
+      } else if (type === 'CONSULTATIONS') {
+        filename = `상담메모(Private)_${timestamp}.xlsx`;
+        const notes = await db.adminNotes.getAll();
+        data = notes.map((n: any) => ({
+          '작성일시': n.createdAt,
+          '회원명': getMemberName(n.memberId),
+          '전화번호': getMemberPhone(n.memberId),
+          '내용': n.content,
+          '작성자': n.adminEmail
+        }));
+      }
+
+      // Download
+      if (data.length === 0) return alert('다운로드할 데이터가 없습니다.');
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+      // Set col width auto
+      const max_width = data.reduce((w, r) => Math.max(w, Object.values(r).join('').length), 10);
+      ws['!cols'] = Object.keys(data[0]).map(() => ({ wch: 20 })); // Simple fixed width
+
+      XLSX.writeFile(wb, filename);
+
+    } catch (e: any) {
+      alert('엑셀 다운로드 실패: ' + e.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // Master Key Interlock (Legacy Modal - Keeping for Data Hub compat until refactored)
   const [showAuthModal, setShowAuthModal] = useState<{ open: boolean, onChevron: () => void }>({ open: false, onChevron: () => { } });
@@ -761,6 +863,42 @@ const MasterSettings: React.FC = () => {
                     accept=".csv"
                     onChange={handleBulkUpload}
                   />
+                </div>
+
+                {/* Excel Export Card (New) */}
+                <div className="bg-white/5 border border-white/10 p-16 rounded-[56px] hover:bg-white/10 transition-all luxury-shadow col-span-2 mt-8">
+                  <div className="flex items-center gap-6 mb-10">
+                    <div className="w-20 h-20 bg-emerald-500/20 rounded-3xl flex items-center justify-center text-emerald-400">
+                      <FileSpreadsheet size={40} />
+                    </div>
+                    <div>
+                      <h4 className="text-3xl font-bold text-white mb-2">Excel Data Center</h4>
+                      <p className="text-sm text-white/40 leading-relaxed font-medium">주요 운영 데이터를 엑셀(XLSX) 형식으로 즉시 추출합니다.<br />마스터 보안 인증(2차)이 완료된 상태에서만 접근 가능합니다.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-4">
+                    {[
+                      { type: 'MEMBERS', label: '회원 명단', icon: '👥' },
+                      { type: 'RESERVATIONS', label: '예약 전체', icon: '📅' },
+                      { type: 'SALES', label: '매출 현황', icon: '💳' },
+                      { type: 'CONSULTATIONS', label: '상담 메모', icon: '📝' },
+                    ].map(item => (
+                      <button
+                        key={item.type}
+                        onClick={() => handleExcelExport(item.type as any)}
+                        disabled={!masterLockVerified || isProcessing}
+                        className={`py-8 rounded-[24px] border border-white/10 flex flex-col items-center gap-3 transition-all ${!masterLockVerified
+                          ? 'bg-white/5 opacity-50 cursor-not-allowed hover:bg-white/5'
+                          : 'bg-white/10 hover:bg-white/20 hover:scale-105 active:scale-95'
+                          }`}
+                      >
+                        <span className="text-3xl filter drop-shadow-lg">{item.icon}</span>
+                        <span className="text-sm font-bold text-white tracking-widest">{item.label}</span>
+                        {!masterLockVerified && <Lock size={12} className="text-rose-400 mt-1" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

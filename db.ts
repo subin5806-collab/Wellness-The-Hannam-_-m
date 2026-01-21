@@ -1042,6 +1042,12 @@ export const db = {
     }
   },
   adminNotes: {
+    getAll: async () => {
+      const { data } = await supabase.from('hannam_admin_private_notes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as AdminPrivateNote[];
+    },
     getByCareRecordId: async (careRecordId: string) => {
       // [SECURITY] RLS will enforce admin-only access
       const { data } = await supabase.from('hannam_admin_private_notes')
