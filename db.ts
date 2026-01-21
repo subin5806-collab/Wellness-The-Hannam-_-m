@@ -771,12 +771,210 @@ export const db = {
         console.error('System Check Error:', e);
         return { success: false, message: e.message };
       }
+    },
+    createFullBackup: async (adminEmail: string) => {
+      try {
+        // 1. Fetch All Data
+        // Use Promise.all for concurrency
+        const [
+          members, memberships, careRecords, reservations, products, managers, admins, notices, categories, contracts, programs,
+          // New additions for completeness
+          rawNotes, rawNotis, rawLogs
+        ] = await Promise.all([
+          db.members.getAll(),
+          db.memberships.getAll(),
+          db.careRecords.getAll(),
+          db.reservations.getAll(),
+          db.master.membershipProducts.getAll(),
+          db.master.managers.getAll(),
+          db.admins.getAll(),
+          db.notices.getAll(),
+          db.categories.getAll(),
+          db.contracts.getAll(),
+          db.master.programs.getAll(),
+          // Raw fetches for auxiliary tables
+          supabase.from('hannam_admin_private_notes').select('*'),
+          supabase.from('hannam_notifications').select('*'),
+          supabase.from('hannam_admin_action_logs').select('*')
+        ]);
+
+        // Transform raw fetches to CamelCase
+        const privateNotes = transformKeys(rawNotes.data || [], 'toCamel');
+        const notifications = transformKeys(rawNotis.data || [], 'toCamel');
+        const actionLogs = transformKeys(rawLogs.data || [], 'toCamel');
+
+        const fullBackup = {
+          metadata: {
+            timestamp: new Date().toISOString(),
+            creator: adminEmail,
+            version: '1.1' // Bump version
+          },
+          data: {
+            members, memberships, careRecords, reservations, products, managers, admins, notices, categories, contracts, programs,
+            privateNotes, notifications, actionLogs
+          }
+        };
+
+        const jsonString = JSON.stringify(fullBackup, null, 2);
+        const fileName = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+
+        // 2. Upload to Storage (bucket 'backups' assumed)
+        const { error: uploadError } = await supabase.storage.from('backups').upload(fileName, new Blob([jsonString], { type: 'application/json' }), { upsert: true });
+
+        // 3. Save Metadata
+        await db.system.backups.add({
+          backupName: fileName,
+          backupData: fullBackup,
+          backupSize: jsonString.length,
+          adminEmail
+        });
+
+        return { success: true, data: fullBackup, fileName };
+      } catch (e: any) {
+        throw new Error(`백업 본본 생성 실패: ${e.message}`);
+      }
+    },
+    restoreFromBackup: async (json: any) => {
+      // Upsert logic. Heavy operation.
+      const {
+        members, memberships, careRecords, reservations, products, managers, categories, notices, contracts, programs,
+        privateNotes, notifications, actionLogs
+      } = json.data;
+
+      // 1. Members
+      if (members?.length) {
+        const { error } = await supabase.from('hannam_members').upsert(transformKeys(members, 'toSnake'), { onConflict: 'id' });
+        if (error) throw new Error('회원 복구 실패: ' + error.message);
+      }
+
+      // 2. Dependencies
+      if (categories?.length) await supabase.from('hannam_categories').upsert(transformKeys(categories, 'toSnake'), { onConflict: 'id' });
+      if (products?.length) await supabase.from('hannam_membership_products').upsert(transformKeys(products, 'toSnake'), { onConflict: 'id' });
+      if (managers?.length) await supabase.from('hannam_managers').upsert(transformKeys(managers, 'toSnake'), { onConflict: 'id' });
+      if (programs?.length) await supabase.from('hannam_programs').upsert(transformKeys(programs, 'toSnake'), { onConflict: 'id' });
+      if (notices?.length) await supabase.from('hannam_notices').upsert(transformKeys(notices, 'toSnake'), { onConflict: 'id' });
+      if (contracts?.length) await supabase.from('hannam_contracts').upsert(transformKeys(contracts, 'toSnake'), { onConflict: 'id' });
+
+      // 3. Core Data
+      if (memberships?.length) await supabase.from('hannam_memberships').upsert(transformKeys(memberships, 'toSnake'), { onConflict: 'id' });
+      if (reservations?.length) await supabase.from('hannam_reservations').upsert(transformKeys(reservations, 'toSnake'), { onConflict: 'id' });
+      if (careRecords?.length) await supabase.from('hannam_care_records').upsert(transformKeys(careRecords, 'toSnake'), { onConflict: 'id' });
+
+      // 4. Auxiliary Data
+      if (privateNotes?.length) await supabase.from('hannam_admin_private_notes').upsert(transformKeys(privateNotes, 'toSnake'), { onConflict: 'id' });
+      if (notifications?.length) await supabase.from('hannam_notifications').upsert(transformKeys(notifications, 'toSnake'), { onConflict: 'id' });
+      if (actionLogs?.length) await supabase.from('hannam_admin_action_logs').upsert(transformKeys(actionLogs, 'toSnake'), { onConflict: 'id' });
+
+      return { success: true };
+    },
+    processCsvMigration: async (rows: any[]) => {
+      let successCount = 0;
+      let errors: string[] = [];
+
+      // [CSV Structure matches Template]
+      // Name, Phone, Gender, Birth, Email, RegDate, Product, Paid, Used, Balance, MsDate, Memo
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row[0] || !row[1]) continue; // Skip empty rows
+
+        const [name, phone, gender, birth, email, regDate, prodName, paidVal, usedVal, balVal, msRegDate, memo] = row;
+        const paid = Number(paidVal?.replace(/[^0-9]/g, '')) || 0;
+        const used = Number(usedVal?.replace(/[^0-9]/g, '')) || 0;
+        // Balance is calculated, but strictly we trust Paid - Used
+
+        try {
+          // 1. Member (Upsert-ish) using add() which handles checks
+          // Note: add() creates ID from phone. 
+          const cleanPhone = phone.replace(/[^0-9]/g, '');
+          let memberId = cleanPhone;
+
+          // Check existence
+          const { data: existing } = await supabase.from('hannam_members').select('id').eq('id', cleanPhone).maybeSingle();
+          if (!existing) {
+            const newMember = await db.members.add({
+              name, phone: cleanPhone, gender: gender === '남성' ? '남성' : '여성', birthDate: birth || '1900-01-01', email: email || '', adminMemo: memo, createdAt: regDate
+            });
+            memberId = newMember.id;
+          } else {
+            // Update memo if exists?
+            if (memo) await db.members.update(memberId, { adminMemo: memo });
+          }
+
+          // 2. Membership
+          if (prodName) {
+            // Create Membership via TopUp (Simulated) or Direct Insert
+            // Direct Insert is better to set specific used_amount
+            const msId = crypto.randomUUID();
+            const { error: msError } = await supabase.from('hannam_memberships').insert([transformKeys({
+              id: msId,
+              memberId,
+              productId: null, // Unknown product ID, just text
+              productName: prodName,
+              totalAmount: paid,
+              usedAmount: used,
+              remainingAmount: paid - used,
+              status: 'active',
+              expiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(), // Default 1 year
+              createdAt: msRegDate || new Date().toISOString()
+            }, 'toSnake')]);
+
+            if (msError) throw msError;
+
+            // 3. Legacy Care Record (if used > 0)
+            if (used > 0) {
+              await supabase.from('hannam_care_records').insert([transformKeys({
+                id: crypto.randomUUID(),
+                memberId,
+                membershipId: msId,
+                programId: 'MIGRATION_LEGACY', // Placeholder
+                originalPrice: used,
+                discountRate: 0,
+                finalPrice: used,
+                balanceAfter: paid - used,
+                noteSummary: 'Legacy Data Migration',
+                noteDetails: 'Previous system usage history migrated via Bulk Upload.',
+                signatureStatus: 'completed',
+                date: new Date().toISOString().split('T')[0],
+                createdAt: new Date().toISOString()
+              }, 'toSnake')]);
+            }
+          }
+          successCount++;
+        } catch (e: any) {
+          errors.push(`Row ${i + 1} (${name}): ${e.message}`);
+        }
+      }
+      return { successCount, errors };
+    },
+    getSecurityConfig: async () => {
+      // Fetch hidden config from Notices
+      const { data } = await supabase.from('hannam_notices').select('content').eq('id', 'SYSTEM_LOCK_CONFIG').maybeSingle();
+      if (data?.content) {
+        try { return JSON.parse(data.content); } catch (e) { return null; }
+      }
+      return { masterPassword: 'ekftnq0134!', authNumber: 'ekftnq0134!' }; // Default Fallback
+    },
+    updateSecurityConfig: async (masterPassword: string, authNumber: string) => {
+      // Upsert hidden notice
+      const { error } = await supabase.from('hannam_notices').upsert({
+        id: 'SYSTEM_LOCK_CONFIG',
+        title: 'SYSTEM_SECURITY_CONFIG_DO_NOT_DELETE',
+        content: JSON.stringify({ masterPassword, authNumber }),
+        category: 'SYSTEM',
+        is_popup: false,
+        is_alert_on: false,
+        start_date: '2099-01-01',
+        end_date: '2099-12-31',
+        created_at: new Date().toISOString()
+      });
+      if (error) throw error;
     }
   },
   notices: {
     getAll: async () => {
       try {
-        const { data, error } = await supabase.from('hannam_notices').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('hannam_notices').select('*').neq('id', 'SYSTEM_LOCK_CONFIG').order('created_at', { ascending: false });
         if (error) {
           if (error.code === '42P01') return []; // Table not found
           throw error;

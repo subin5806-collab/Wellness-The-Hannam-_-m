@@ -558,28 +558,58 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
         {/* Global Popup */}
         {
           popupNotices.length > 0 && view === 'dashboard' && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-8 animate-in fade-in duration-500">
-              <div className="bg-white rounded-[60px] w-full overflow-hidden shadow-2xl relative flex flex-col max-h-[85vh]">
-                {popupNotices[0].imageUrl && <img src={popupNotices[0].imageUrl} className="w-full aspect-square object-cover" alt="Popup" />}
-                <div className="p-12 space-y-4 overflow-y-auto">
-                  <h4 className="text-3xl font-bold text-[#1A3C34] leading-tight font-serif italic">{popupNotices[0].title}</h4>
-                  <p className="text-[15px] text-slate-500 leading-relaxed font-medium">{popupNotices[0].content}</p>
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[2000] flex items-center justify-center p-6 animate-in fade-in duration-300">
+              <div className="bg-white rounded-[32px] w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[85vh]">
+
+                {/* Close X Button */}
+                <button
+                  onClick={() => setActiveNotices(activeNotices.filter(n => n.id !== popupNotices[0].id))}
+                  className="absolute top-4 right-4 z-20 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full backdrop-blur-sm transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+
+                {/* Content Scroll Area */}
+                <div className="overflow-y-auto custom-scrollbar flex-1 bg-white">
+                  {popupNotices[0].imageUrl && (
+                    <div className="w-full bg-slate-50 border-b border-slate-100/50">
+                      <img
+                        src={popupNotices[0].imageUrl}
+                        className="w-full h-auto max-h-[60vh] object-contain mx-auto"
+                        alt="Popup"
+                      />
+                    </div>
+                  )}
+
+                  <div className="p-8 space-y-3">
+                    <h4 className="text-2xl font-bold text-[#1A3C34] leading-tight font-serif italic">{popupNotices[0].title}</h4>
+                    <p className="text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-wrap">{popupNotices[0].content}</p>
+                  </div>
                 </div>
-                <div className="flex border-t">
+
+                {/* Footer Actions */}
+                <div className="p-5 border-t border-slate-100 bg-white flex justify-between items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    {/* Using a hidden checkbox + custom UI or just standard checkbox */}
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 rounded border-slate-300 text-[#1A3C34] focus:ring-[#1A3C34]"
+                      id="doNotShowCheckbox"
+                    />
+                    <span className="text-xs font-bold text-slate-400 group-hover:text-slate-600 transition-colors">오늘 하루 보지 않기</span>
+                  </label>
+
                   <button
                     onClick={() => {
-                      const suppressed = JSON.parse(localStorage.getItem('suppressed_popups') || '{}');
-                      suppressed[popupNotices[0].id] = new Date().toISOString().split('T')[0];
-                      localStorage.setItem('suppressed_popups', JSON.stringify(suppressed));
+                      const checkbox = document.getElementById('doNotShowCheckbox') as HTMLInputElement;
+                      if (checkbox && checkbox.checked) {
+                        const suppressed = JSON.parse(localStorage.getItem('suppressed_popups') || '{}');
+                        suppressed[popupNotices[0].id] = new Date().toISOString().split('T')[0];
+                        localStorage.setItem('suppressed_popups', JSON.stringify(suppressed));
+                      }
                       setActiveNotices(activeNotices.filter(n => n.id !== popupNotices[0].id));
                     }}
-                    className="flex-1 py-10 text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] hover:bg-slate-50 transition-all border-r"
-                  >
-                    오늘 하루 보지 않기
-                  </button>
-                  <button
-                    onClick={() => setActiveNotices(activeNotices.filter(n => n.id !== popupNotices[0].id))}
-                    className="flex-1 py-10 text-[10px] font-bold text-[#1A3C34] uppercase tracking-[0.3em] hover:bg-[#1A3C34] hover:text-white transition-all shadow-inner"
+                    className="px-8 py-3 bg-[#1A3C34] text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all hover:bg-[#153029]"
                   >
                     닫기
                   </button>
