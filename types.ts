@@ -64,7 +64,7 @@ export interface MembershipProduct {
   totalAmount: number;
   bonusAmount: number;
   validMonths: number;
-  tier: 'BASIC' | 'SILVER' | 'GOLD' | 'VVIP';
+  tier: 'BASIC' | 'SILVER' | 'GOLD' | 'PLATINUM' | 'DIAMOND' | 'VVIP';
   description: string;
   defaultDiscountRate: number;
 }
@@ -89,10 +89,21 @@ export interface Membership {
   createdAt: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  parentId: string | null; // null = Top (Tab), Value = Subgroup
+  type: string;
+  orderIndex: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface Program {
   id: string;
   name: string;
-  category: 'BODY' | 'FACE' | 'SCALP' | 'SPA' | 'OTHER';
+  category: 'BODY' | 'FACE' | 'SCALP' | 'SPA' | 'OTHER'; // Legacy (will be deprecated or mapped)
+  categoryId?: string; // New Link
   basePrice: number;
   durationMinutes: number;
   description: string;

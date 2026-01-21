@@ -1,6 +1,6 @@
 
 import { createClient } from '@supabase/supabase-js';
-import { Member, Notice, Membership, CareRecord, Program, Admin, Reservation, Manager, Notification, Contract, MembershipProduct, ContractTemplate, AuditLog, SystemBackup, AdminPrivateNote } from './types';
+import { Member, Notice, Membership, CareRecord, Program, Admin, Reservation, Manager, Notification, Contract, MembershipProduct, ContractTemplate, AuditLog, SystemBackup, AdminPrivateNote, Category } from './types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ghhknsewwevbgojozdzc.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaGtuc2V3d2V2Ymdvam96ZHpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1ODg1NTUsImV4cCI6MjA4MzE2NDU1NX0.AYHMQSU6d9c7avX8CeOoNekFbJoibVxWno9PkIOuSnc';
@@ -66,7 +66,10 @@ const FIELD_MAP: Record<string, string> = {
   'old_value': 'oldValue',
   'new_value': 'newValue',
   'care_record_id': 'careRecordId',
-  'admin_private_notes': 'adminPrivateNotes'
+  'admin_private_notes': 'adminPrivateNotes',
+  'category_id': 'categoryId',
+  'parent_id': 'parentId',
+  'order_index': 'orderIndex'
 };
 
 const transformKeys = (obj: any, type: 'toCamel' | 'toSnake'): any => {
@@ -202,6 +205,29 @@ export const db = {
       const cleanPhone = phone.replace(/[^0-9]/g, '');
       const { data } = await supabase.from('hannam_members').select('*').eq('phone', cleanPhone).eq('is_deleted', false).maybeSingle();
       return transformKeys(data, 'toCamel') as Member | null;
+    }
+  },
+  categories: {
+    getAll: async () => {
+      const { data } = await supabase.from('hannam_categories').select('*').order('order_index', { ascending: true });
+      return transformKeys(data || [], 'toCamel') as Category[];
+    },
+    add: async (category: Partial<Category>) => {
+      const { data, error } = await supabase.from('hannam_categories').insert([transformKeys({
+        ...category,
+        isActive: true
+      }, 'toSnake')]).select();
+      if (error) throw error;
+      return transformKeys(data?.[0], 'toCamel') as Category;
+    },
+    update: async (id: string, updates: Partial<Category>) => {
+      const { data, error } = await supabase.from('hannam_categories').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
+      if (error) throw error;
+      return transformKeys(data?.[0], 'toCamel') as Category;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase.from('hannam_categories').delete().eq('id', id);
+      if (error) throw error;
     }
   },
   membershipProducts: {
