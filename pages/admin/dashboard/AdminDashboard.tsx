@@ -79,7 +79,10 @@ const AdminDashboard: React.FC = () => {
 
   const getMemberName = (id: string) => members.find(m => m.id === id)?.name || '알 수 없음';
   const getProgramName = (id: string) => programs.find(p => p.id === id)?.name || '알 수 없음';
-  const getManagerName = (id: string) => managers.find(m => m.id === id)?.name || '미지정';
+  const getManagerName = (id?: string, fallbackName?: string) => {
+    if (!id) return fallbackName || '미지정';
+    return managers.find(m => m.id === id)?.name || fallbackName || '미지정';
+  };
 
   const statusMap: any = {
     'RESERVED': { label: '예약 확정', class: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
@@ -260,7 +263,7 @@ const AdminDashboard: React.FC = () => {
                     <td className="py-8 px-10">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-sm shadow-inner">👤</div>
-                        <span className="text-[15px] font-bold text-slate-600">{getManagerName(res.managerId || '')}</span>
+                        <span className="text-[15px] font-bold text-slate-600">{getManagerName(res.managerId || '', res.adminName)}</span>
                       </div>
                     </td>
                     <td className="py-8 px-10 text-center">

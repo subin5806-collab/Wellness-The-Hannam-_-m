@@ -13,7 +13,8 @@ const CareHistorySplitPage: React.FC = () => {
 
     const [member, setMember] = useState<Member | null>(null);
     const [history, setHistory] = useState<CareRecord[]>([]);
-    const balanceEngine = useBalanceEngine(memberId || null);
+    const [programs, setPrograms] = useState<any[]>([]);
+    const [managers, setManagers] = useState<any[]>([]);
 
     useEffect(() => {
         if (memberId) loadData();
@@ -22,9 +23,12 @@ const CareHistorySplitPage: React.FC = () => {
     const loadData = async () => {
         const m = await db.members.getById(memberId!);
         setMember(m);
-        // history is loaded via useBalanceEngine roughly, but let's just use what we have or fetch raw
         const h = await db.careRecords.getByMemberId(memberId!);
         setHistory(h);
+        const p = await db.master.programs.getAll();
+        setPrograms(p || []);
+        const mgrs = await db.master.managers.getAll();
+        setManagers(mgrs || []);
     };
 
     const selectedRecord = history.find(h => h.id === recordId);
@@ -52,6 +56,9 @@ const CareHistorySplitPage: React.FC = () => {
                     <div className="flex-1 overflow-y-auto p-4 space-y-3">
                         {history.map(h => {
                             const isActive = h.id === recordId;
+                            const progName = programs.find(p => p.id === h.programId)?.name || '프로그램 정보 없음';
+                            const mgrName = managers.find(m => m.id === h.managerId)?.name || '미지정';
+
                             return (
                                 <div
                                     key={h.id}
@@ -61,7 +68,12 @@ const CareHistorySplitPage: React.FC = () => {
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <div className={`text-[13px] font-bold ${isActive ? 'text-white' : 'text-[#2F3A32]'}`}>{h.date}</div>
-                                            <div className={`text-[10px] font-bold mt-1 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`}>{h.membershipId ? '멤버십 이용' : '일반 결제'}</div>
+                                            <div className={`text-[11px] font-bold mt-1 ${isActive ? 'text-emerald-400' : 'text-[#1A3C34]'}`}>
+                                                {progName}
+                                            </div>
+                                            <div className={`text-[9px] font-medium mt-0.5 ${isActive ? 'text-white/60' : 'text-slate-400'}`}>
+                                                담당 관리사: {mgrName}
+                                            </div>
                                         </div>
                                         <div className={`text-[13px] font-black ${isActive ? 'text-emerald-400' : 'text-slate-800'}`}>
                                             -₩{h.finalPrice?.toLocaleString()}
@@ -83,6 +95,8 @@ const CareHistorySplitPage: React.FC = () => {
                             careRecordId={selectedRecord.id}
                             initialSummary={selectedRecord.noteSummary || ''}
                             initialRecommendation={selectedRecord.noteRecommendation || ''}
+                            programName={programs.find(p => p.id === selectedRecord.programId)?.name || 'Wellness Care'}
+                            date={selectedRecord.date}
                             onUpdate={loadData}
                             className="h-full shadow-md"
                         />

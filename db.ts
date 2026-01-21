@@ -69,7 +69,9 @@ const FIELD_MAP: Record<string, string> = {
   'admin_private_notes': 'adminPrivateNotes',
   'category_id': 'categoryId',
   'parent_id': 'parentId',
-  'order_index': 'orderIndex'
+  'order_index': 'orderIndex',
+  'admin_id': 'adminId',
+  'admin_name': 'adminName'
 };
 
 const transformKeys = (obj: any, type: 'toCamel' | 'toSnake'): any => {
@@ -379,6 +381,7 @@ export const db = {
         membershipId: record.membershipId,
         programId: record.programId,
         reservationId: record.reservationId,
+        managerId: record.managerId, // [FIX] Include Manager ID in Insert Payload
         originalPrice: record.originalPrice,
         discountRate: record.discountRate,
         finalPrice: record.finalPrice,

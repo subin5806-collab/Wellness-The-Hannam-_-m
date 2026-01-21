@@ -166,6 +166,8 @@ export interface Reservation {
   memberId: string;
   programId: string;
   managerId?: string;
+  adminId?: string; // [FIX] Fallback for legacy data
+  adminName?: string; // [FIX] Fallback for legacy data
   status: 'RESERVED' | 'COMPLETED' | 'CANCELLED';
   createdAt: string;
 }

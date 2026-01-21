@@ -321,39 +321,42 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                     Experience History
                   </h4>
                 </div>
-                <div className="mx-8 bg-white rounded-[40px] border border-slate-50 shadow-sm overflow-hidden">
-                  <table className="w-full">
-                    <thead className="text-[8px] text-slate-300 font-bold uppercase tracking-[0.15em] border-b border-slate-50">
-                      <tr>
-                        <th className="px-6 py-6 font-bold text-left">Date</th>
-                        <th className="px-6 py-6 font-bold text-left">Program</th>
-                        <th className="px-6 py-6 font-bold text-right">Ded.</th>
-                        <th className="px-6 py-6 font-bold text-center">Sig.</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {history.slice(0, 5).map(record => (
-                        <tr key={record.id} onClick={() => setSelectedRecord(record)} className="group cursor-pointer hover:bg-slate-50 transition-all">
-                          <td className="px-6 py-7 text-[10px] text-slate-400 font-medium tabular-nums">{record.date.replace(/-/g, '. ')}</td>
-                          <td className="px-6 py-7">
-                            <p className="text-[13px] font-serif-luxury italic font-bold text-[#1A1A1A] leading-tight line-clamp-1">
-                              {programs.find(p => p.id === record.programId)?.name || 'Wellness Ritual'}
-                            </p>
-                          </td>
-                          <td className="px-6 py-7 text-right">
-                            <p className="text-[13px] font-bold text-[#A58E6F] tabular-nums">-{Math.floor(record.finalPrice / 1000)}k</p>
-                          </td>
-                          <td className="px-6 py-7 text-center">
-                            <div className="inline-block w-12 h-6 border border-dashed border-slate-100 rounded-lg p-1 bg-slate-50/30 overflow-hidden">
-                              {record.signatureData ? (
-                                <img src={record.signatureData} className="w-full h-full object-contain opacity-40 grayscale group-hover:opacity-80 transition-all" alt="Sig" />
-                              ) : <div className="text-[6px] text-slate-200 uppercase">Empty</div>}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="mx-6 space-y-3">
+                  {history.slice(0, 10).map(record => {
+                    const timeStr = record.createdAt ? new Date(record.createdAt).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '';
+                    const programName = programs.find(p => p.id === record.programId)?.name || 'Wellness Care';
+                    return (
+                      <div key={record.id} onClick={() => setSelectedRecord(record)} className="bg-white rounded-[24px] px-6 py-5 border border-slate-50 shadow-sm flex items-center justify-between active:scale-[0.98] transition-transform cursor-pointer">
+                        {/* Left: Date & Time */}
+                        <div className="flex flex-col gap-0.5 min-w-[70px]">
+                          <span className="text-[11px] font-bold text-[#A58E6F] tabular-nums tracking-wide">{record.date.replace(/-/g, '.')}</span>
+                          <span className="text-[10px] font-medium text-slate-300 tabular-nums">{timeStr}</span>
+                        </div>
+
+                        {/* Center: Program Name */}
+                        <div className="flex-1 px-4 text-center">
+                          <h5 className="text-[13px] font-bold text-[#1A1A1A] truncate leading-tight">
+                            {programName}
+                          </h5>
+                        </div>
+
+                        {/* Right: Price & Signature */}
+                        <div className="flex items-center gap-3 text-right min-w-[80px] justify-end">
+                          <span className="text-[13px] font-bold text-rose-400 tabular-nums tracking-tight">
+                            -{Math.floor(record.finalPrice).toLocaleString()}
+                          </span>
+                          <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${record.signatureData ? 'bg-[#1A3C34] border-[#1A3C34]' : 'bg-slate-50 border-slate-100'}`}>
+                            {record.signatureData ? (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                            ) : (
+                              <span className="w-0.5 h-0.5 bg-slate-200 rounded-full"></span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {history.length === 0 && <div className="py-12 text-center text-slate-300 italic text-sm">이용 내역이 없습니다.</div>}
                 </div>
               </section>
             </div>

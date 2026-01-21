@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { db } from '../../../db';
+import { db, supabase } from '../../../db';
 import { Member, Membership, Program, MembershipProduct } from '../../../types';
+import { useBalanceEngine } from '../../../hooks/useBalanceEngine';
 import SignaturePad from '../../../components/common/SignaturePad';
 
 const CareSessionPage: React.FC = () => {
@@ -13,50 +14,80 @@ const CareSessionPage: React.FC = () => {
 
   const navigate = useNavigate();
   const [member, setMember] = useState<Member | null>(null);
-  const [memberships, setMemberships] = useState<Membership[]>([]);
+
+  // [Changed] Use Balance Engine for Single Source of Truth
+  const balanceEngine = useBalanceEngine(memberId || null);
+  const memberships = balanceEngine.memberships; // synced memberships with calculated balances
+
   const [selectedMembershipId, setSelectedMembershipId] = useState('');
   const [programs, setPrograms] = useState<Program[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState(progId || '');
   const [discountRate, setDiscountRate] = useState(0);
   const [msProducts, setMsProducts] = useState<MembershipProduct[]>([]);
-  /* --------------------------------------------------------------------------------
-   * State Management
-   * -------------------------------------------------------------------------------- */
+
   // Records & Notes
   const [notes, setNotes] = useState({ summary: '', details: '', recommendation: '' });
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSignModal, setShowSignModal] = useState(false);
+  // const [showSignModal, setShowSignModal] = useState(false); // Unused
 
   const [customOriginalPrice, setCustomOriginalPrice] = useState<number | ''>('');
+
+  const [managers, setManagers] = useState<any[]>([]); // [NEW] Managers List
+  const [selectedManagerId, setSelectedManagerId] = useState(''); // [NEW] Selected Manager
 
   useEffect(() => {
     if (memberId) loadInitialData();
   }, [memberId]);
 
+  // Sync selected membership when loaded
+  useEffect(() => {
+    if (!selectedMembershipId && memberships.length > 0) {
+      // Prioritize active memberships
+      const active = memberships.find(m => m.status === 'active');
+      const target = active || memberships[0];
+      setSelectedMembershipId(target.id);
+    }
+  }, [memberships, selectedMembershipId]);
+
+  // Sync discount rate when membership changes
+  useEffect(() => {
+    if (selectedMembershipId && memberships.length > 0) {
+      const ms = memberships.find(m => m.id === selectedMembershipId);
+      if (ms) {
+        const p = msProducts.find(x => x.id === ms.productId || x.name === ms.productName);
+        // Dynamic discount rate from membership or product
+        setDiscountRate(Math.floor(p?.defaultDiscountRate ?? ms.defaultDiscountRate ?? 0));
+      }
+    }
+  }, [selectedMembershipId, memberships, msProducts]);
+
+
   const loadInitialData = async () => {
     try {
-      const [m, msList, allProgs, allProducts] = await Promise.all([
+      const [m, allProgs, allProducts, allManagers] = await Promise.all([
         db.members.getById(memberId!),
-        db.memberships.getAllByMemberId(memberId!),
         db.master.programs.getAll(),
-        db.master.membershipProducts.getAll()
+        db.master.membershipProducts.getAll(),
+        db.master.managers.getAll() // [NEW] Fetch Managers
       ]);
       if (m) setMember(m);
-      setMemberships(msList || []);
       setMsProducts(allProducts || []);
+      setManagers(allManagers || []);
 
       const pList = (allProgs || []).filter(p => p.isActive && !p.isDeleted);
       setPrograms(pList);
 
-      if (msList.length > 0) {
-        setSelectedMembershipId(msList[0].id);
-        const p = allProducts?.find(x => x.id === msList[0].productId || x.name === msList[0].productName);
-        setDiscountRate(Math.floor(p?.defaultDiscountRate ?? msList[0].defaultDiscountRate ?? 0));
-      }
-
       if (progId) {
         const p = pList.find(x => x.id === progId);
         if (p) setCustomOriginalPrice(p.basePrice);
+      }
+
+      // [NEW] Auto-select manager from reservation if exists
+      if (resId) {
+        const { data } = await supabase.from('hannam_reservations').select('manager_id').eq('id', resId).single();
+        if (data && data.manager_id) {
+          setSelectedManagerId(data.manager_id);
+        }
       }
     } catch (e) { console.error(e); }
   };
@@ -64,16 +95,21 @@ const CareSessionPage: React.FC = () => {
   const selectedProgram = programs.find(p => p.id === selectedProgramId);
   const selectedMembership = memberships.find(ms => ms.id === selectedMembershipId);
 
+  // [Calculation Logic]
+  // 1. Original Price: Program Base Price (or Custom Override)
   const originalPrice = customOriginalPrice !== '' ? customOriginalPrice : (selectedProgram?.basePrice || 0);
-  const discountAmount = Math.floor(originalPrice * (Math.floor(discountRate) / 100));
-  const finalAmount = originalPrice - discountAmount;
 
-  const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
+  // 2. Discount Amount: Original * (Discount Rate / 100) -> Floored
+  const discountAmount = Math.floor(originalPrice * (Math.floor(discountRate) / 100));
+
+  // 3. Final Amount: Original - Discount
+  const finalAmount = originalPrice - discountAmount;
 
   const handleCompleteSession = async () => {
     if (!member || !selectedProgram || !selectedMembership) return alert('필수 정보 누락');
-    if (Math.floor(selectedMembership.remainingAmount) < finalAmount) return alert('잔액 부족');
+    if (Math.floor(selectedMembership.calculatedRemaining) < finalAmount) return alert('잔액 부족');
     if (!notes.summary.trim()) return alert('웰니스 케어 요약을 입력해 주세요.');
+    if (!selectedManagerId) return alert('담당 관리사를 선택해 주세요.'); // [NEW] Validation
 
     setIsProcessing(true);
     try {
@@ -83,6 +119,7 @@ const CareSessionPage: React.FC = () => {
         membershipId: selectedMembershipId,
         programId: selectedProgramId,
         reservationId: resId,
+        managerId: selectedManagerId, // [FIX] Use State ManagerID
         originalPrice: Math.floor(originalPrice),
         discountRate: discountRate,
         finalPrice: finalAmount,
@@ -90,7 +127,8 @@ const CareSessionPage: React.FC = () => {
         noteDetails: '', // [REMOVED] Private notes are now separate
         noteRecommendation: notes.recommendation,
         noteFutureRef: ''
-      });// 예약 상태 변경
+      });
+      // 예약 상태 변경
       try {
         if (resId) await db.reservations.updateStatus(resId, 'COMPLETED');
       } catch (err) {
@@ -109,7 +147,7 @@ const CareSessionPage: React.FC = () => {
     }
   };
 
-  if (!member) return <div className="p-20 text-center font-serif-luxury italic text-slate-300 text-2xl">Wellness Data Syncing...</div>;
+  if (!member || balanceEngine.isLoading) return <div className="p-20 text-center font-serif-luxury italic text-slate-300 text-2xl">Wellness Data Syncing...</div>;
 
   return (
     <div className="max-w-5xl mx-auto space-y-12 page-transition pb-24">
@@ -129,31 +167,34 @@ const CareSessionPage: React.FC = () => {
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Hannam Premium Membership</p>
           </div>
           <div className="space-y-4 pt-8 border-t border-slate-50">
-            {memberships.map(ms => (
-              <label key={ms.id} className={`flex items-center justify-between p-5 rounded-2xl border cursor-pointer transition-all duration-300 ${selectedMembershipId === ms.id ? 'bg-[#1A3C34] text-white border-[#1A3C34] shadow-lg scale-[1.02]' : 'bg-[#F9F9F7] text-slate-400 border-transparent hover:border-slate-200'}`}>
-                <input type="radio" checked={selectedMembershipId === ms.id} onChange={() => {
-                  setSelectedMembershipId(ms.id);
-                  const p = msProducts.find(x => x.id === ms.productId || x.name === ms.productName);
-                  setDiscountRate(Math.floor(p?.defaultDiscountRate ?? ms.defaultDiscountRate ?? 0));
-                }} className="hidden" />
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-bold">{ms.productName}</span>
-                  <span className="text-[8px] opacity-60 font-medium uppercase tracking-tighter mt-0.5">Available Balance</span>
-                  {selectedMembershipId === ms.id && (
-                    <div className="mt-2 inline-flex px-2 py-0.5 bg-white/20 rounded-full items-center gap-1.5 animate-in fade-in duration-500">
-                      <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
-                      <span className="text-[8px] font-black uppercase tracking-widest text-[#A58E6F]">
-                        DC: {(() => {
-                          const p = msProducts.find(x => x.id === ms.productId || x.name === ms.productName);
-                          return Math.floor(p?.defaultDiscountRate ?? ms.defaultDiscountRate ?? 0);
-                        })()}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <span className="text-[13px] font-black tabular-nums">₩{Math.floor(ms.remainingAmount).toLocaleString()}</span>
-              </label>
-            ))}
+            {memberships.map(ms => {
+              // Calculate Remaining based on engine result (already calculated in hook)
+              // Just strictly display calculatedRemaining
+              const remaining = Math.floor(ms.calculatedRemaining);
+              const productName = ms.productName;
+              const discount = Math.floor(msProducts.find(x => x.id === ms.productId || x.name === ms.productName)?.defaultDiscountRate ?? ms.defaultDiscountRate ?? 0);
+
+              return (
+                <label key={ms.id} className={`flex items-center justify-between p-5 rounded-2xl border cursor-pointer transition-all duration-300 ${selectedMembershipId === ms.id ? 'bg-[#1A3C34] text-white border-[#1A3C34] shadow-lg scale-[1.02]' : 'bg-[#F9F9F7] text-slate-400 border-transparent hover:border-slate-200'}`}>
+                  <input type="radio" checked={selectedMembershipId === ms.id} onChange={() => {
+                    setSelectedMembershipId(ms.id);
+                  }} className="hidden" />
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold">{productName}</span>
+                    <span className="text-[8px] opacity-60 font-medium uppercase tracking-tighter mt-0.5">Available Balance</span>
+                    {selectedMembershipId === ms.id && (
+                      <div className="mt-2 inline-flex px-2 py-0.5 bg-white/20 rounded-full items-center gap-1.5 animate-in fade-in duration-500">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-[#A58E6F]">
+                          DC: {discount}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[13px] font-black tabular-nums">₩{remaining.toLocaleString()}</span>
+                </label>
+              );
+            })}
           </div>
         </section>
 
@@ -175,7 +216,21 @@ const CareSessionPage: React.FC = () => {
                 {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
-            <div className="space-y-1.5">
+            {/* [NEW] Manager Selector */}
+            <div className="space-y-2">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">Assigned Therapist</label>
+              <select
+                className="w-full px-6 py-4 bg-[#F9F9F7] rounded-[24px] border border-transparent outline-none font-bold text-[#1A3C34] text-sm focus:bg-white focus:border-[#1A3C34] transition-all"
+                value={selectedManagerId}
+                onChange={e => setSelectedManagerId(e.target.value)}
+              >
+                <option value="">담당 관리사 선택 (필수)</option>
+                {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+
+
+            <div className="space-y-1.5 col-span-2">
               <label className="text-[9px] font-bold text-[#A58E6F] uppercase tracking-widest ml-2">Calculation</label>
               <div className="bg-[#1A3C34] p-5 rounded-[20px] text-white space-y-3 shadow-md relative overflow-hidden group border border-white/10">
                 <div className="flex justify-between items-center text-[10px] font-medium opacity-70">

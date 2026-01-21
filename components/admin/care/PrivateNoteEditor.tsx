@@ -6,6 +6,8 @@ interface Props {
     careRecordId: string;
     initialSummary?: string;
     initialRecommendation?: string;
+    programName?: string;
+    date?: string;
     onUpdate?: () => void;
     className?: string;
 }
@@ -14,6 +16,8 @@ const PrivateNoteEditor: React.FC<Props> = ({
     careRecordId,
     initialSummary = '',
     initialRecommendation = '',
+    programName = '-',
+    date = '-',
     onUpdate,
     className
 }) => {
@@ -22,20 +26,24 @@ const PrivateNoteEditor: React.FC<Props> = ({
     const [recommendation, setRecommendation] = useState(initialRecommendation);
     const [privateContent, setPrivateContent] = useState('');
 
-    // 2. Data State
+    // 2. Control State
+    const [publicEditMode, setPublicEditMode] = useState(false);
     const [noteData, setNoteData] = useState<AdminPrivateNote | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
+    const [isSavingPublic, setIsSavingPublic] = useState(false);
+    const [isSavingPrivate, setIsSavingPrivate] = useState(false);
 
     // 3. Load Private Note on ID change
     useEffect(() => {
         loadData();
     }, [careRecordId]);
 
-    // 4. Sync props to state when switching records
+    // 4. Sync props to state when switching records (only if not editing)
     useEffect(() => {
-        setSummary(initialSummary || '');
-        setRecommendation(initialRecommendation || '');
+        if (!publicEditMode) {
+            setSummary(initialSummary || '');
+            setRecommendation(initialRecommendation || '');
+        }
     }, [careRecordId, initialSummary, initialRecommendation]);
 
     const loadData = async () => {
@@ -51,100 +59,182 @@ const PrivateNoteEditor: React.FC<Props> = ({
         }
     };
 
-    const handleSave = async () => {
-        setIsSaving(true);
+    const handleSavePublic = async () => {
+        if (!window.confirm('웰니스 케어 노트(공개용)가 변경됩니다.\n회원 앱에 즉시 반영됩니다. 저장하시겠습니까?')) return;
+
+        setIsSavingPublic(true);
         try {
-            // A. Update Public Fields (CareRecord)
             await db.careRecords.update(careRecordId, {
                 noteSummary: summary,
                 noteRecommendation: recommendation
             });
-
-            // B. Update Private Note (AdminPrivateNote)
-            // Only upsert if there's content, or if we want to allow clearing it?
-            // Existing logic matches db.adminNotes.upsert usage
-            const savedNote = await db.adminNotes.upsert(careRecordId, privateContent);
-            setNoteData(savedNote);
-
-            alert('모든 내용이 저장되었습니다.');
-
-            // C. Refresh Parent (Timeline)
+            alert('공개용 웰니스 노트가 저장되었습니다.');
+            setPublicEditMode(false);
             if (onUpdate) onUpdate();
-
         } catch (e: any) {
-            console.error(e);
             alert(`저장 실패: ${e.message}`);
         } finally {
-            setIsSaving(false);
+            setIsSavingPublic(false);
         }
     };
 
-    if (isLoading) return <div className="p-10 text-center text-slate-400">Loading Control Tower...</div>;
+    const handleSavePrivate = async () => {
+        setIsSavingPrivate(true);
+        try {
+            const savedNote = await db.adminNotes.upsert(careRecordId, privateContent);
+            setNoteData(savedNote);
+            alert('관리자 비공개 노트가 저장되었습니다.');
+            if (onUpdate) onUpdate();
+        } catch (e: any) {
+            alert(`저장 실패: ${e.message}`);
+        } finally {
+            setIsSavingPrivate(false);
+        }
+    };
+
+    if (isLoading) return <div className="p-10 text-center text-slate-400">Loading Editor...</div>;
 
     return (
-        <div className={`flex flex-col gap-6 h-full ${className}`}>
-            {/* [Top Row] Control Cards */}
-            <div className="grid grid-cols-2 gap-6 h-[45%]">
-                {/* 1. Management Summary Card */}
-                <div className="bg-[#1A3C34] rounded-[32px] p-8 flex flex-col shadow-md relative overflow-hidden group">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-[13px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-                            <span>📌</span> 관리 요약 (Timeline)
-                        </h3>
-                    </div>
-                    <textarea
-                        className="flex-1 w-full bg-white/10 rounded-2xl p-4 border border-white/10 outline-none text-sm leading-relaxed font-medium text-white placeholder-white/30 resize-none focus:bg-white/20 transition-all"
-                        placeholder="타임라인에 표시될 핵심 관리 내용을 요약하세요..."
-                        value={summary}
-                        onChange={e => setSummary(e.target.value)}
-                    />
-                </div>
+        <div className={`flex flex-col gap-8 h-full ${className}`}>
 
-                {/* 2. Recommendation Card */}
-                <div className="bg-[#F9F9FB] rounded-[32px] p-8 flex flex-col shadow-sm border border-slate-100 relative overflow-hidden group">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-[13px] font-bold text-[#A58E6F] uppercase tracking-widest flex items-center gap-2">
-                            <span>💌</span> 다음 케어 추천
+            {/* CARD 1: PUBLIC WELLNESS NOTE (Visual Separation) */}
+            <div className={`rounded-[32px] p-8 flex flex-col shadow-sm border transition-all relative group h-[45%] ${publicEditMode ? 'bg-white border-[#A58E6F] ring-1 ring-[#A58E6F]/20' : 'bg-[#F9F9FB] border-slate-100'}`}>
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 className="text-[13px] font-bold text-[#1A3C34] uppercase tracking-widest flex items-center gap-2">
+                            <span>🌿</span> WELLNESS CARE NOTE (공개용)
                         </h3>
-                        <span className="text-[9px] font-bold text-slate-400 bg-white border px-2 py-1 rounded-lg">회원 공개</span>
+                        <p className="text-[10px] text-slate-400 font-medium mt-1 pl-6">작성된 내용은 회원 앱 '리포트'란에 표시됩니다.</p>
                     </div>
-                    <textarea
-                        className="flex-1 w-full bg-white rounded-2xl p-4 border border-slate-200 outline-none text-sm leading-relaxed font-serif text-[#2F3A32] placeholder-slate-300 resize-none focus:border-[#A58E6F] transition-all"
-                        placeholder="회원님께 제안할 다음 케어 방향이나 홈케어 팁을 작성하세요..."
-                        value={recommendation}
-                        onChange={e => setRecommendation(e.target.value)}
-                    />
-                </div>
-            </div>
 
-            {/* [Bottom Row] Private Note */}
-            <div className="flex-1 bg-[#FFF9F2] rounded-[32px] p-8 border border-[#F2E8DA] flex flex-col shadow-md relative">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold text-[#2F3A32] flex items-center gap-2">
-                        <span className="text-xl">🔒</span> 관리자 전용 비공개 노트
-                    </h3>
-                    {noteData?.updatedAt && (
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            Last Updated: {new Date(noteData.updatedAt).toLocaleDateString()}
-                        </span>
+                    {!publicEditMode ? (
+                        <button
+                            onClick={() => setPublicEditMode(true)}
+                            className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-500 hover:text-[#1A3C34] hover:border-[#1A3C34] transition-all shadow-sm"
+                        >
+                            수정하기 (Edit)
+                        </button>
+                    ) : (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => {
+                                    setPublicEditMode(false);
+                                    setSummary(initialSummary || '');
+                                    setRecommendation(initialRecommendation || '');
+                                }}
+                                className="px-4 py-2 bg-slate-100 rounded-xl text-[11px] font-bold text-slate-400 hover:bg-slate-200"
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleSavePublic}
+                                disabled={isSavingPublic}
+                                className="px-5 py-2 bg-[#A58E6F] text-white rounded-xl text-[11px] font-bold shadow-md hover:bg-[#8E795D] transition-all"
+                            >
+                                {isSavingPublic ? '저장 중...' : '변경 저장'}
+                            </button>
+                        </div>
                     )}
                 </div>
 
-                <textarea
-                    className="flex-1 w-full bg-white rounded-2xl p-6 border border-[#F2E8DA] outline-none text-sm leading-relaxed font-medium text-slate-600 focus:ring-2 focus:ring-[#A58E6F]/20 transition-all resize-none mb-6 shadow-inner"
-                    placeholder="회원에게 공개되지 않는 관리자 전용 메모 공간입니다.&#13;&#10;케어 특이사항, 컴플레인 내역, 내부 공유 사항 등을 자유롭게 작성하세요."
-                    value={privateContent}
-                    onChange={(e) => setPrivateContent(e.target.value)}
-                />
+                <div className="flex-1 grid grid-cols-2 gap-8 min-h-0">
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-widest pl-1">관리 요약</label>
+                        {publicEditMode ? (
+                            <textarea
+                                className="flex-1 w-full bg-slate-50 rounded-2xl p-4 border border-slate-200 outline-none text-sm leading-relaxed font-medium text-[#2F3A32] placeholder-slate-300 resize-none focus:bg-white focus:border-[#A58E6F] transition-all"
+                                placeholder="관리 내용 요약..."
+                                value={summary}
+                                onChange={e => setSummary(e.target.value)}
+                            />
+                        ) : (
+                            <div className="flex-1 bg-white/50 border border-slate-100 rounded-2xl p-4 overflow-y-auto">
+                                <p className={`text-sm leading-relaxed whitespace-pre-wrap ${!summary ? 'text-slate-300 italic' : 'text-slate-600 font-medium'}`}>
+                                    {summary || '작성된 요약이 없습니다.'}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-widest pl-1">홈케어 추천</label>
+                        {publicEditMode ? (
+                            <textarea
+                                className="flex-1 w-full bg-slate-50 rounded-2xl p-4 border border-slate-200 outline-none text-sm leading-relaxed font-serif text-[#2F3A32] placeholder-slate-300 resize-none focus:bg-white focus:border-[#A58E6F] transition-all"
+                                placeholder="추천 멘트 작성..."
+                                value={recommendation}
+                                onChange={e => setRecommendation(e.target.value)}
+                            />
+                        ) : (
+                            <div className="flex-1 bg-white/50 border border-slate-100 rounded-2xl p-4 overflow-y-auto">
+                                <p className={`text-sm leading-relaxed whitespace-pre-wrap ${!recommendation ? 'text-slate-300 italic' : 'text-slate-600 font-serif'}`}>
+                                    {recommendation || '작성된 추천 내용이 없습니다.'}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-                <div className="flex justify-end">
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="px-10 py-4 bg-[#2F3A32] text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg hover:bg-[#1A3C34] hover:shadow-xl active:scale-[0.98] transition-all disabled:opacity-50 ring-1 ring-white/20"
-                    >
-                        {isSaving ? '저장 중...' : '전체 저장 (Save All)'}
-                    </button>
+            {/* CARD 2: PRIVATE ADMIN NOTE (Distinct Logic) */}
+            <div className="flex-1 bg-[#FFF9F2] rounded-[32px] p-8 border border-[#F2E8DA] flex shadow-md relative overflow-hidden gap-8">
+                {/* Visual Accent */}
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-[#1A3C34]"></div>
+
+                {/* Left: Reference Box (Read-Only Context) */}
+                <div className="w-1/3 flex flex-col gap-4 border-r border-[#F2E8DA] pr-8">
+                    <div>
+                        <h3 className="text-lg font-bold text-[#1A3C34] flex items-center gap-2 mb-1">
+                            <span>🔒</span> SECRET NOTE
+                        </h3>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administrator Access Only</p>
+                    </div>
+
+                    <div className="bg-white/60 rounded-2xl p-5 border border-[#F2E8DA]">
+                        <h4 className="text-[10px] font-bold text-[#A58E6F] uppercase tracking-widest mb-3">Reference Info</h4>
+                        <div className="space-y-3">
+                            <div>
+                                <span className="block text-[9px] text-slate-400 font-bold uppercase">Date</span>
+                                <span className="text-xs font-bold text-[#2F3A32]">{date}</span>
+                            </div>
+                            <div>
+                                <span className="block text-[9px] text-slate-400 font-bold uppercase">Program</span>
+                                <span className="text-xs font-bold text-[#2F3A32]">{programName}</span>
+                            </div>
+                            <div className="pt-2 border-t border-slate-100">
+                                <span className="block text-[9px] text-slate-400 font-bold uppercase mb-1">Public Note Snapshot</span>
+                                <p className="text-[10px] text-slate-500 line-clamp-4 leading-relaxed bg-slate-50 p-2 rounded-lg border border-slate-50 italic">
+                                    {initialSummary || '(내용 없음)'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right: Input Area */}
+                <div className="flex-1 flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">비공개 메모 작성</span>
+                        {noteData?.updatedAt && (
+                            <span className="text-[9px] text-emerald-600/60 font-bold bg-[#E8F5E9] px-2 py-0.5 rounded-md">
+                                저장됨: {new Date(noteData.updatedAt).toLocaleTimeString()}
+                            </span>
+                        )}
+                    </div>
+                    <textarea
+                        className="flex-1 w-full bg-white rounded-2xl p-6 border border-[#F2E8DA] outline-none text-sm leading-relaxed font-medium text-slate-600 focus:ring-2 focus:ring-[#1A3C34]/10 transition-all resize-none mb-4 shadow-sm"
+                        placeholder="이곳에 작성된 내용은 회원에게 절대 공개되지 않습니다.&#13;&#10;관리 이력, 특이사항, 내부 공유 메모를 자유롭게 남기세요."
+                        value={privateContent}
+                        onChange={(e) => setPrivateContent(e.target.value)}
+                    />
+                    <div className="flex justify-end">
+                        <button
+                            onClick={handleSavePrivate}
+                            disabled={isSavingPrivate}
+                            className="px-8 py-3 bg-[#1A3C34] text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg hover:shadow-xl hover:bg-[#152e28] active:scale-[0.98] transition-all"
+                        >
+                            {isSavingPrivate ? '저장 중...' : '비공개 노트 저장'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
