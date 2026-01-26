@@ -2,7 +2,18 @@
     "crons": [
         {
             "path": "/api/cron/visit-reminder",
-            "schedule": "0 9-20 * * *"
+            "schedule": "0 * * * *"
+        }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "Content-Security-Policy",
+                    "value": "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https:; img-src 'self' data: https:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https:;"
+                }
+            ]
         }
     ]
 }
