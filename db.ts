@@ -969,6 +969,34 @@ export const db = {
         created_at: new Date().toISOString()
       });
       if (error) throw error;
+    },
+    // [AlimTalk]
+    getAlimTalkConfig: async () => {
+      const { data } = await supabase.from('hannam_notices').select('content').eq('id', 'ALIMTALK_CONFIG').maybeSingle();
+      if (data?.content) {
+        try { return JSON.parse(data.content); } catch (e) { return null; }
+      }
+      return {
+        isActive: false,
+        sendTime: '15:00',
+        senderPhone: '',
+        reminderTemplateCode: 'TP_REMIND_01',
+        reminderBody: '[웰니스더한남] 예약 알림\n\n#{이름}님, 내일(#{날짜}) #{시간} 예약을 안내드립니다.\n프로그램: #{프로그램}'
+      };
+    },
+    updateAlimTalkConfig: async (config: any) => {
+      const { error } = await supabase.from('hannam_notices').upsert({
+        id: 'ALIMTALK_CONFIG',
+        title: 'ALIMTALK_CONFIG',
+        content: JSON.stringify(config),
+        category: 'SYSTEM',
+        is_popup: false,
+        is_alert_on: false,
+        start_date: '2099-01-01',
+        end_date: '2099-12-31',
+        created_at: new Date().toISOString()
+      });
+      if (error) throw error;
     }
   },
   notices: {
@@ -981,6 +1009,11 @@ export const db = {
         }
         return transformKeys(data || [], 'toCamel') as Notice[];
       } catch (e) { return []; }
+    },
+    getById: async (id: string) => {
+      const { data, error } = await supabase.from('hannam_notices').select('*').eq('id', id).single();
+      if (error) return null;
+      return transformKeys(data, 'toCamel') as Notice;
     },
     add: async (notice: any) => {
       const { data, error } = await supabase.from('hannam_notices').insert([transformKeys({

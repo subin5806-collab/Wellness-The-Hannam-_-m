@@ -10,6 +10,7 @@ import MemberMemoSection from '../../../components/admin/member/MemberMemoSectio
 import CareDetailModal from '../../../components/member/CareDetailModal';
 import MemberRegistrationModal from '../../../components/admin/member/MemberRegistrationModal';
 import { useBalanceEngine } from '../../../hooks/useBalanceEngine';
+import { AligoService } from '../../../services/aligo';
 
 type DetailTab = 'PROFILE' | 'MEMBERSHIP' | 'USAGE' | 'AUDIT' | 'SECURITY';
 const SECONDARY_PWD_REQUIRED = 'ekdnfhem2ck';
@@ -624,6 +625,15 @@ export default function MemberManagement() {
                   if (!grantForm.productName) return alert('상품을 선택하세요.');
                   try {
                     await db.memberships.topUp(selectedMember.id, grantForm.amount, grantForm.productName, grantForm.discountRate, grantForm.productId);
+
+                    // [AlimTalk] Payment Complete Notification
+                    try {
+                      const config = await db.system.getAlimTalkConfig();
+                      if (config?.isActive) {
+                        const msg = `[웰니스더한남] 멤버십 결제 완료\n\n${selectedMember.name}님, ${grantForm.productName} 멤버십(수동부여)이 등록되었습니다.\n금액: ${grantForm.amount.toLocaleString()}원`;
+                        await AligoService.sendDirect(selectedMember.phone, msg, 'TP_PAY_01');
+                      }
+                    } catch (e) { console.error('AlimTalk Error:', e); }
                     alert('멤버십이 성공적으로 부여되었습니다.');
                     setShowGrantMembershipModal(false);
                     handleViewDetails(selectedMember); // Refresh

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../db';
 import { Gender, MembershipProduct, Member } from '../../../types';
+import { AligoService } from '../../../services/aligo';
 
 interface MemberRegistrationModalProps {
     onClose: () => void;
@@ -58,6 +59,15 @@ const MemberRegistrationModal: React.FC<MemberRegistrationModalProps> = ({ onClo
                     const product = products.find(p => p.id === selectedProductId);
                     if (product) {
                         await db.memberships.topUp(newMember.id, product.totalAmount, product.name);
+
+                        // [AlimTalk] Payment Complete Notification
+                        try {
+                            const config = await db.system.getAlimTalkConfig();
+                            if (config?.isActive) {
+                                const msg = `[웰니스더한남] 멤버십 결제 완료\n\n${newMember.name}님, ${product.name} 멤버십 등록이 완료되었습니다.\n금액: ${product.totalAmount.toLocaleString()}원`;
+                                await AligoService.sendDirect(newMember.phone, msg);
+                            }
+                        } catch (e) { console.error('AlimTalk Error:', e); }
                     }
                 }
                 alert('회원이 성공적으로 등록되었습니다.');

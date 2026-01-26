@@ -4,8 +4,10 @@ import { ChevronRight, Filter, Search, Plus, Calendar, Settings, Shield, UserX, 
 import { db, hashPassword } from '../../../db';
 import { Program, MembershipProduct, Manager, Admin, SystemBackup, Category } from '../../../types';
 import * as XLSX from 'xlsx';
+import { AligoService } from '../../../services/aligo';
+import { MessageSquare, Clock, Send, PlayCircle, StopCircle, RefreshCw, AlertCircle, Trash2 } from 'lucide-react';
 
-type SettingsTab = 'MEMBERSHIP' | 'CARE_PROGRAM' | 'MANAGER' | 'SECURITY' | 'DATA_HUB';
+type SettingsTab = 'MEMBERSHIP' | 'CARE_PROGRAM' | 'MANAGER' | 'SECURITY' | 'DATA_HUB' | 'ALIMTALK';
 const MASTER_SEC_KEY = 'ekftnq0134!';
 
 const MasterSettings: React.FC = () => {
@@ -149,6 +151,12 @@ const MasterSettings: React.FC = () => {
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [selectedSubgroupId, setSelectedSubgroupId] = useState<string | null>(null);
 
+  // [AlimTalk State]
+  const [alimTalkConfig, setAlimTalkConfig] = useState<any>(null);
+  const [alimTalkTemplates, setAlimTalkTemplates] = useState<any[]>([]);
+  const [manualMsg, setManualMsg] = useState({ receiver: '', templateCode: '', content: '' });
+  const [msgStatus, setMsgStatus] = useState<string | null>(null);
+
   useEffect(() => {
     loadData();
     checkAdminRole();
@@ -214,6 +222,14 @@ const MasterSettings: React.FC = () => {
           // Pre-fill update form with current values for convenience
           setNewMasterForm({ password: config.masterPassword, authCode: config.authNumber });
         }
+      }
+      else if (activeTab === 'ALIMTALK') {
+        const [config, templates] = await Promise.all([
+          db.system.getAlimTalkConfig(),
+          AligoService.getTemplates()
+        ]);
+        setAlimTalkConfig(config);
+        setAlimTalkTemplates(templates);
       }
     } finally { setIsLoading(false); }
   };
@@ -488,6 +504,32 @@ const MasterSettings: React.FC = () => {
     }
   };
 
+  /* AlimTalk Handlers */
+  const handleAlimTalkConfigSave = async () => {
+    if (!alimTalkConfig) return;
+    try {
+      await db.system.updateAlimTalkConfig(alimTalkConfig);
+      alert('알림톡 설정이 저장되었습니다.\n(스마트 크론: 매시간 정각 체크)');
+    } catch (e: any) { alert(e.message); }
+  };
+
+  const handleManualAlimTalkSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualMsg.receiver || !manualMsg.content) return alert('수신번호와 내용을 입력해주세요.');
+    setMsgStatus('Sending...');
+    try {
+      const res = await AligoService.sendDirect(manualMsg.receiver, manualMsg.content, manualMsg.templateCode);
+      if (res.code === 0) {
+        setMsgStatus('✅ 발송 성공');
+        setManualMsg({ ...manualMsg, content: '' });
+      } else {
+        setMsgStatus(`❌ 실패: ${res.message}`);
+      }
+    } catch (e: any) {
+      setMsgStatus(`❌ 오류: ${e.message}`);
+    }
+  };
+
   return (
     <div className="space-y-12 pb-24 page-transition max-w-[1400px] mx-auto">
       <header className="border-b pb-10 flex justify-between items-end">
@@ -502,6 +544,7 @@ const MasterSettings: React.FC = () => {
           { id: 'MEMBERSHIP', label: '멤버십 관리' },
           { id: 'CARE_PROGRAM', label: '케어 프로그램' },
           { id: 'MANAGER', label: '관리사 배정' },
+          { id: 'ALIMTALK', label: '알림톡 센터' },
           { id: 'SECURITY', label: '보안 정책' },
           { id: 'DATA_HUB', label: '데이터 허브' }
         ].map(tab => (
@@ -894,8 +937,8 @@ const MasterSettings: React.FC = () => {
                         onClick={() => handleExcelExport(item.type as any)}
                         disabled={isProcessing}
                         className={`py-8 rounded-[24px] border border-white/10 flex flex-col items-center gap-3 transition-all ${!masterLockVerified
-                            ? 'bg-white/5 opacity-70 hover:bg-white/10 hover:opacity-100'
-                            : 'bg-white/10 hover:bg-white/20 hover:scale-105 active:scale-95'
+                          ? 'bg-white/5 opacity-70 hover:bg-white/10 hover:opacity-100'
+                          : 'bg-white/10 hover:bg-white/20 hover:scale-105 active:scale-95'
                           }`}
                       >
                         <span className="text-3xl filter drop-shadow-lg">{item.icon}</span>
@@ -960,6 +1003,239 @@ const MasterSettings: React.FC = () => {
             </div>
           </div>
 
+        )}
+
+        {activeTab === 'ALIMTALK' && alimTalkConfig && (
+          <div className="animate-in slide-in-from-right-4 space-y-12">
+            {/* 1. Smart Cron Control */}
+            <div className="bg-white p-10 rounded-[48px] border luxury-shadow flex justify-between items-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-2 h-full bg-[#FAE100]"></div>
+              <div>
+                <div className="flex items-center gap-4 mb-2">
+                  <div className="w-12 h-12 bg-[#FAE100]/20 rounded-2xl flex items-center justify-center text-[#3B1E1E]">
+                    <Clock size={24} />
+                  </div>
+                  <h3 className="text-2xl font-bold text-[#3B1E1E]">Smart Cron Automation</h3>
+                </div>
+                <p className="text-slate-400 font-medium text-sm pl-16">
+                  매일 지정된 시간에 <span className="text-[#3B1E1E] font-bold">
+                    {alimTalkConfig.daysBefore === 0 ? '당일 예약 고객' :
+                      alimTalkConfig.daysBefore === 2 ? '모레 예약 고객' : '내일 예약 고객'}
+                  </span>에게 리마인드 알림톡을 자동 발송합니다.<br />
+                  <span className="text-[10px] text-slate-300">Powered by Vercel Serverless Cron (Hourly Check)</span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-8 bg-slate-50 p-6 rounded-[32px] border border-slate-100">
+                <div className="text-center">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">AUTO SENDING</label>
+                  <button
+                    onClick={() => setAlimTalkConfig({ ...alimTalkConfig, isActive: !alimTalkConfig.isActive })}
+                    className={`w-16 h-8 rounded-full relative transition-all ${alimTalkConfig.isActive ? 'bg-[#3B1E1E]' : 'bg-slate-200'}`}
+                  >
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-sm ${alimTalkConfig.isActive ? 'left-9' : 'left-1'}`}></div>
+                  </button>
+                </div>
+
+                <div className="h-10 w-[1px] bg-slate-200"></div>
+
+                <div className="text-center">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">SEND DAY</label>
+                  <select
+                    className="bg-transparent font-bold text-xl text-[#3B1E1E] outline-none cursor-pointer text-center"
+                    value={alimTalkConfig.daysBefore?.toString() || '1'}
+                    onChange={e => setAlimTalkConfig({ ...alimTalkConfig, daysBefore: parseInt(e.target.value) })}
+                    disabled={!alimTalkConfig.isActive}
+                  >
+                    <option value="0">당일 (Today)</option>
+                    <option value="1">1일 전 (D-1)</option>
+                    <option value="2">2일 전 (D-2)</option>
+                  </select>
+                </div>
+
+                <div className="h-10 w-[1px] bg-slate-200"></div>
+
+                <div className="text-center">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">SEND TIME (KST)</label>
+                  <select
+                    value={alimTalkConfig.sendTime}
+                    onChange={(e) => setAlimTalkConfig({ ...alimTalkConfig, sendTime: e.target.value })}
+                    className="bg-transparent font-bold text-xl text-[#3B1E1E] outline-none cursor-pointer text-center"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 9).map(h => (
+                      <option key={h} value={`${h}:00`}>{h}:00</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleAlimTalkConfigSave}
+                  className="px-6 py-3 bg-[#3B1E1E] text-white rounded-xl text-[11px] font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
+                >
+                  설정 저장
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-8">
+              {/* 2. Manual Console */}
+              <div className="col-span-6 bg-white p-10 rounded-[48px] border luxury-shadow">
+                <div className="flex items-center gap-3 mb-8">
+                  <MessageSquare className="text-[#3B1E1E]" />
+                  <h4 className="text-xl font-bold text-[#3B1E1E]">Manual Console</h4>
+                </div>
+
+                <form onSubmit={handleManualAlimTalkSend} className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">수신 번호</label>
+                    <input
+                      className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#3B1E1E]"
+                      placeholder="01012345678"
+                      value={manualMsg.receiver}
+                      onChange={e => setManualMsg({ ...manualMsg, receiver: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">템플릿 선택</label>
+                    <select
+                      className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold text-[#3B1E1E]"
+                      value={manualMsg.templateCode}
+                      onChange={e => {
+                        const tpl = alimTalkTemplates.find(t => t.code === e.target.value);
+                        setManualMsg({
+                          ...manualMsg,
+                          templateCode: e.target.value,
+                          content: tpl ? tpl.content : manualMsg.content
+                        });
+                      }}
+                    >
+                      <option value="">(직접 입력)</option>
+                      {alimTalkTemplates.map(t => (
+                        <option key={t.code} value={t.code}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">메시지 내용</label>
+                    <textarea
+                      className="w-full px-6 py-4 bg-[#FAE100]/10 border border-[#FAE100]/20 rounded-2xl outline-none font-medium text-[#3B1E1E] min-h-[150px] resize-none"
+                      value={manualMsg.content}
+                      onChange={e => setManualMsg({ ...manualMsg, content: e.target.value })}
+                      placeholder="메시지 내용을 입력하세요."
+                    />
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-bold text-emerald-600">{msgStatus}</span>
+                    <button type="submit" className="px-8 py-4 bg-[#3B1E1E] text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-black transition-all shadow-xl">
+                      <Send size={16} />
+                      즉시 발송
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* 3. Logic Guide & Info */}
+              <div className="col-span-6 space-y-6">
+                <div className="bg-[#3B1E1E] p-10 rounded-[48px] text-white relative overflow-hidden">
+                  <AlertCircle className="w-20 h-20 text-white/5 absolute -right-2 -bottom-2" />
+                  <h4 className="text-xl font-bold mb-4 font-serif italic">Logic Guide</h4>
+                  <ul className="space-y-4 text-sm text-white/70">
+                    <li className="flex gap-3">
+                      <span className="bg-white/10 px-2 py-1 rounded text-xs">Rule 1</span>
+                      <span>
+                        자동 리마인드는 <strong>
+                          {alimTalkConfig.daysBefore === 0 ? '당일 예약자' :
+                            alimTalkConfig.daysBefore === 2 ? '이틀 전(모레) 예약자' : '하루 전(내일) 예약자'}
+                        </strong>에게만 발송됩니다.
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="bg-white/10 px-2 py-1 rounded text-xs">Rule 2</span>
+                      <span>Vercel Cron은 UTC 기준이나, 시스템이 <strong>KST 시간대</strong>를 자동 계산하여 설정된 시간에 동작합니다.</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="bg-white/10 px-2 py-1 rounded text-xs">Tip</span>
+                      <span>템플릿 변수(Example: #{"{이름}"})는 실제 발송 시 고객 정보로 자동 치환됩니다.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="bg-white p-8 rounded-[40px] border border-dashed border-slate-200">
+                  <div className="flex justify-between items-center mb-6">
+                    <h5 className="font-bold text-[#3B1E1E] text-sm uppercase tracking-wider">Template Management</h5>
+                    <button
+                      onClick={() => {
+                        const name = prompt('템플릿명');
+                        const content = prompt('템플릿 내용');
+                        if (name && content) {
+                          AligoService.addTemplate(name, content).then(res => {
+                            if (res.code === 0) { alert('등록 요청되었습니다.'); handleTabChange('ALIMTALK'); }
+                            else alert('Error: ' + res.message);
+                          });
+                        }
+                      }}
+                      className="px-3 py-1 bg-[#FAE100] text-[#3B1E1E] text-xs font-bold rounded-lg hover:bg-yellow-400"
+                    >
+                      + 신규 등록
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    {alimTalkTemplates.map((t: any) => {
+                      const isApproved = t.status === 'R'; // R: Ready/Approved
+                      const isActive = alimTalkConfig.reminderTemplateCode === t.code;
+
+                      return (
+                        <div key={t.code} className={`p-5 rounded-2xl border transition-all ${isActive ? 'bg-[#3B1E1E] border-[#3B1E1E] text-white ring-4 ring-[#FAE100]/20' : 'bg-slate-50 border-slate-100'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm truncate">{t.name}</span>
+                              {isActive && <span className="bg-[#FAE100] text-[#3B1E1E] text-[10px] px-2 py-0.5 rounded-full font-bold">사용 중 (Active)</span>}
+                            </div>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${isApproved ? 'bg-emerald-100 text-emerald-600' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {isApproved ? '승인 완료 (Approved)' : '검수 대기 (Inspection)'}
+                            </span>
+                          </div>
+                          <p className="text-xs opacity-80 whitespace-pre-wrap mb-4 leading-relaxed line-clamp-3">{t.content}</p>
+
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono text-[10px] opacity-50">{t.code}</span>
+                            <div className="flex gap-2">
+                              {!isActive && (
+                                <button
+                                  onClick={() => {
+                                    if (!isApproved) return alert('검수 중인 템플릿은 발송 설정할 수 없습니다.\n승인이 완료된 후 설정해 주세요.');
+                                    setAlimTalkConfig({ ...alimTalkConfig, reminderTemplateCode: t.code, reminderBody: t.content });
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isApproved ? 'bg-white/20 hover:bg-white/30 text-current' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                                >
+                                  이걸로 설정
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  if (isActive) return alert('현재 사용 중인 템플릿은 삭제할 수 없습니다.');
+                                  if (confirm('정말 삭제하시겠습니까?')) {
+                                    AligoService.deleteTemplate(t.code).then(() => loadData());
+                                  }
+                                }}
+                                className="text-white/40 hover:text-red-400"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {activeTab === 'SECURITY' && (
