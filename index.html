@@ -84,18 +84,18 @@
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function (registrations) {
                 for (let registration of registrations) {
-                    // Keep firebase messaging, unregister others if they exist and are not the mock sw
+                    // Keep firebase messaging, unregister others
                     if (registration.scope.includes('firebase')) continue;
-                    // If we have a 'service-worker.js' that is OLD, we might want to unregister it once
-                    // But for now, let's just log.
-                    // Actually, the user asked to "Force Refresh".
-                    // logic: If a specific flag isn't set, unregister all and reload.
-                    // const hasReset = localStorage.getItem('sw_reset_v1');
-                    // if (!hasReset) {
-                    //    registration.unregister();
-                    //    localStorage.setItem('sw_reset_v1', 'true');
-                    //    window.location.reload();
-                    // }
+
+                    // [Force Refresh] Unregister cached SWs to fix white screen
+                    const FORCE_RESET_KEY = 'wellness_pwa_reset_v20260127_v2';
+                    if (!localStorage.getItem(FORCE_RESET_KEY)) {
+                        console.warn('[System] Force resetting service worker for update...');
+                        registration.unregister().then(() => {
+                            localStorage.setItem(FORCE_RESET_KEY, 'true');
+                            window.location.reload();
+                        });
+                    }
                 }
             });
         }
