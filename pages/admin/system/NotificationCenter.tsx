@@ -8,117 +8,45 @@ export default function NotificationCenter() {
     const [members, setMembers] = useState<Member[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Compose State
-    const [composeForm, setComposeForm] = useState({
-        title: '',
-        body: '',
-        imageUrl: '',
-        linkUrl: '',
-        channels: { push: true, notice: false, popup: false },
-        targetMode: 'ALL' as 'ALL' | 'INDIVIDUAL',
-        selectedMemberIds: new Set<string>()
-    });
+    const [searchTerm, setSearchTerm] = useState('');
+    const [pushTokens, setPushTokens] = useState<Set<string>>(new Set());
 
-    // Auto Config State
-    const [autoConfig, setAutoConfig] = useState({
-        visitReminder: { enabled: true, time: '09:00', timing: '1_DAY_BEFORE' },
-        etiquette: { enabled: true, start: '22:00', end: '08:00' }
-    });
+    // ... (Auto Config State)
+
+    // Filtered Members Logic
+    const filteredMembers = members.filter(m =>
+        m.name.includes(searchTerm) ||
+        (m.phone && m.phone.includes(searchTerm))
+    );
 
     useEffect(() => {
         fetchData();
         loadSettings();
     }, []);
 
-    const loadSettings = async () => {
-        const { data } = await supabase.from('hannam_system_settings').select('setting_value').eq('setting_key', 'NOTIFICATION_CONFIG').single();
-        if (data?.setting_value) {
-            setAutoConfig(data.setting_value);
-        }
-    };
-
-    const saveSettings = async (newConfig: any) => {
-        const { error } = await supabase.from('hannam_system_settings').upsert({
-            setting_key: 'NOTIFICATION_CONFIG',
-            setting_value: newConfig,
-            updated_at: new Date().toISOString()
-        });
-        if (error) alert('설정 저장 실패: ' + error.message);
-        else alert('설정이 저장되었습니다.');
-    };
+    // ... (loadSettings/saveSettings)
 
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const allMembers = await db.members.getAll();
+            const [allMembers, tokens] = await Promise.all([
+                db.members.getAll(),
+                db.fcmTokens.getAllAdmin()
+            ]);
             setMembers(allMembers || []);
+            setPushTokens(new Set(tokens || []));
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleSend = async () => {
-        const { title, body, channels, selectedMemberIds, targetMode, linkUrl, imageUrl } = composeForm;
-        if (!title || !body) return alert('제목과 내용을 입력해주세요.');
-        if (targetMode === 'INDIVIDUAL' && selectedMemberIds.size === 0) return alert('대상 회원을 선택해주세요.');
+    // ... (handleSend)
 
-        if (confirm('정말로 발송하시겠습니까?')) {
-            try {
-                // 1. Send Push
-                if (channels.push) {
-                    const tokensToUse = ['mock-token']; // Replace with real selection logic
-                    await fetch('/api/push/send', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title, body, tokens: tokensToUse, data: { url: linkUrl, image: imageUrl } })
-                    });
-                }
-
-                // 2. Create Notice / Popup
-                if (channels.notice || channels.popup) {
-                    const noticeData = {
-                        title,
-                        content: body, // Simplified
-                        isPopup: channels.popup,
-                        // ... other fields
-                    };
-                    // await db.notices.add(noticeData); // Mock call
-                }
-
-                alert('발송 처리가 완료되었습니다.');
-                setComposeForm(prev => ({ ...prev, title: '', body: '' }));
-            } catch (e) {
-                alert('발송 중 오류가 발생했습니다.');
-            }
-        }
-    };
-
-    const toggleMemberSelection = (id: string) => {
-        const newSet = new Set(composeForm.selectedMemberIds);
-        if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
-        setComposeForm(prev => ({ ...prev, selectedMemberIds: newSet }));
-    };
+    // ... (toggleMemberSelection)
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <header className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold text-[#2F3A32]">통합 알림 센터</h2>
-                    <p className="text-xs text-[#A58E6F] font-bold mt-1 uppercase tracking-widest">Integrated Notification Command Center</p>
-                </div>
-                <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-100">
-                    {['COMPOSE', 'AUTO', 'HISTORY'].map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveTab(tab as any)}
-                            className={`px-6 py-2.5 rounded-lg text-xs font-bold transition-all ${activeTab === tab ? 'bg-[#2F3A32] text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                            {tab === 'COMPOSE' ? '통합 발송' : tab === 'AUTO' ? '자동화 설정' : '발송 이력'}
-                        </button>
-                    ))}
-                </div>
-            </header>
+            {/* ... Header ... */}
 
             {activeTab === 'COMPOSE' && (
                 <div className="grid grid-cols-12 gap-8">
@@ -126,63 +54,70 @@ export default function NotificationCenter() {
                     <div className="col-span-8 space-y-6">
                         <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100 space-y-8">
 
-                            {/* Channel Selector */}
-                            <div className="space-y-3">
-                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">발송 채널 선택</label>
-                                <div className="flex gap-4">
-                                    {[
-                                        { id: 'push', label: '📱 앱 푸시 (App Push)', desc: '상단바 알림' },
-                                        { id: 'notice', label: '📢 공지사항 (Notice)', desc: '앱 내 게시판' },
-                                        { id: 'popup', label: '🔔 팝업 (Popup)', desc: '메인 팝업 띄우기' }
-                                    ].map(ch => (
-                                        <div key={ch.id}
-                                            onClick={() => setComposeForm(prev => ({ ...prev, channels: { ...prev.channels, [ch.id]: !prev.channels[ch.id as keyof typeof prev.channels] } }))}
-                                            className={`flex-1 p-4 rounded-2xl border-2 cursor-pointer transition-all ${composeForm.channels[ch.id as keyof typeof composeForm.channels] ? 'border-[#2F3A32] bg-[#F9FAFB]' : 'border-slate-50 hover:border-slate-200'}`}
-                                        >
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <div className={`w-5 h-5 rounded-full flex items-center justify-center ${composeForm.channels[ch.id as keyof typeof composeForm.channels] ? 'bg-[#2F3A32] text-white' : 'bg-slate-100 text-slate-300'}`}>
-                                                    {composeForm.channels[ch.id as keyof typeof composeForm.channels] && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
-                                                </div>
-                                                <span className={`font-bold ${composeForm.channels[ch.id as keyof typeof composeForm.channels] ? 'text-[#2F3A32]' : 'text-slate-400'}`}>{ch.label}</span>
-                                            </div>
-                                            <p className="text-[10px] text-slate-400 pl-8">{ch.desc}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            {/* ... Channel Selector ... */}
 
                             {/* Target Selector */}
                             <div className="space-y-3">
                                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">수신 대상</label>
-                                <div className="flex gap-6 p-1 bg-slate-50 rounded-xl w-fit">
-                                    <button
-                                        onClick={() => setComposeForm(prev => ({ ...prev, targetMode: 'ALL' }))}
-                                        className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${composeForm.targetMode === 'ALL' ? 'bg-white shadow-sm text-[#2F3A32]' : 'text-slate-400'}`}
-                                    >
-                                        전체 회원 ({members.length})
-                                    </button>
-                                    <button
-                                        onClick={() => setComposeForm(prev => ({ ...prev, targetMode: 'INDIVIDUAL' }))}
-                                        className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${composeForm.targetMode === 'INDIVIDUAL' ? 'bg-white shadow-sm text-[#2F3A32]' : 'text-slate-400'}`}
-                                    >
-                                        개별 선택 ({composeForm.selectedMemberIds.size})
-                                    </button>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex gap-6 p-1 bg-slate-50 rounded-xl w-fit">
+                                        <button
+                                            onClick={() => setComposeForm(prev => ({ ...prev, targetMode: 'ALL' }))}
+                                            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${composeForm.targetMode === 'ALL' ? 'bg-white shadow-sm text-[#2F3A32]' : 'text-slate-400'}`}
+                                        >
+                                            전체 회원 ({members.length})
+                                        </button>
+                                        <button
+                                            onClick={() => setComposeForm(prev => ({ ...prev, targetMode: 'INDIVIDUAL' }))}
+                                            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${composeForm.targetMode === 'INDIVIDUAL' ? 'bg-white shadow-sm text-[#2F3A32]' : 'text-slate-400'}`}
+                                        >
+                                            개별 선택 ({composeForm.selectedMemberIds.size})
+                                        </button>
+                                    </div>
+                                    {composeForm.targetMode === 'INDIVIDUAL' && (
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="이름 또는 전화번호 검색..."
+                                                className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-[#2F3A32] transition-colors w-64"
+                                                value={searchTerm}
+                                                onChange={e => setSearchTerm(e.target.value)}
+                                            />
+                                            <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Individual Selector */}
                                 {composeForm.targetMode === 'INDIVIDUAL' && (
-                                    <div className="h-48 overflow-y-auto border border-slate-100 rounded-2xl p-4 bg-slate-50/50 mt-4">
-                                        {members.map(m => (
-                                            <div key={m.id} onClick={() => toggleMemberSelection(m.id)} className="flex items-center justify-between py-2 px-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${composeForm.selectedMemberIds.has(m.id) ? 'bg-[#2F3A32] border-[#2F3A32]' : 'border-slate-300'}`}>
-                                                        {composeForm.selectedMemberIds.has(m.id) && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                                    <div className="h-64 overflow-y-auto border border-slate-100 rounded-2xl p-2 bg-slate-50/50 mt-4 custom-scrollbar">
+                                        {filteredMembers.length > 0 ? (
+                                            filteredMembers.map(m => (
+                                                <div key={m.id} onClick={() => toggleMemberSelection(m.id)} className="flex items-center justify-between py-3 px-4 hover:bg-white rounded-xl cursor-pointer transition-all group mb-1">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${composeForm.selectedMemberIds.has(m.id) ? 'bg-[#2F3A32] border-[#2F3A32] shadow-sm' : 'border-slate-300 bg-white group-hover:border-[#2F3A32]'}`}>
+                                                            {composeForm.selectedMemberIds.has(m.id) && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`text-sm font-bold ${composeForm.selectedMemberIds.has(m.id) ? 'text-[#2F3A32]' : 'text-slate-600'}`}>{m.name}</span>
+                                                                {pushTokens.has(m.id) && (
+                                                                    <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[10px] font-bold border border-indigo-100 flex items-center gap-1">
+                                                                        🔔 APP
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-xs text-slate-400 font-mono tracking-wide">{m.phone}</span>
+                                                        </div>
                                                     </div>
-                                                    <span className="text-sm font-bold text-slate-600">{m.name}</span>
-                                                    <span className="text-xs text-slate-400">{m.phone}</span>
                                                 </div>
+                                            ))
+                                        ) : (
+                                            <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-2">
+                                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                                <span className="text-xs font-bold">검색 결과가 없습니다.</span>
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
                                 )}
                             </div>
