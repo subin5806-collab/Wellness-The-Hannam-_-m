@@ -133,17 +133,10 @@ export default function NotificationCenter() {
                     let tokensToUse: string[] = [];
 
                     if (targetMode === 'ALL') {
-                        tokensToUse = Array.from(pushTokens); // Send to all admin known tokens? Or fetch all tokens?
-                        // Ideally, backend should handle "ALL" to avoid payload size limits, but for now we send what we have loaded.
-                        // But wait! `pushTokens` in state is only initialized with `getAllAdmin`.
-                        // We probably should fetch ALL member tokens if target is ALL.
-                        // For safety in this version, let's fetch tokens if ALL.
-                        if (members.length > pushTokens.size) {
-                            const allTokens = await db.fcmTokens.getAllAdmin(); // This method name is confusing, verify implementation.
-                            tokensToUse = allTokens;
-                        } else {
-                            tokensToUse = Array.from(pushTokens);
-                        }
+                        // Fetch ALL tokens from DB directly to ensure we get tokens, not member IDs
+                        const { data } = await supabase.from('hannam_fcm_tokens').select('token');
+                        tokensToUse = data?.map(r => r.token) || [];
+                        console.log(`[Push] Fetched ${tokensToUse.length} tokens for ALL members.`);
                     } else {
                         // Individual
                         // We need to fetch tokens for these specific members. 
@@ -151,10 +144,7 @@ export default function NotificationCenter() {
                         // Wait, `pushTokens` state in `NotificationCenter` (line 12) is `Set<string>`. 
                         // `fetchData` (line 62) calls `db.fcmTokens.getAllAdmin()` which returns memberIDs.
                         // This means we don't have the actual token strings in client state!
-                        // We need to fetch actual tokens for selected users or tell backend to do it.
-                        // The mock API `/api/push/send` (lines 83-87) expects `tokens` array. 
-
-                        // FIX: We need to fetch real tokens before sending.
+                        // We need to fetch real tokens before sending.
                         // But `db.fcmTokens.getByMemberId` returns array of tokens.
 
                         const selectedIds = Array.from(selectedMemberIds);
