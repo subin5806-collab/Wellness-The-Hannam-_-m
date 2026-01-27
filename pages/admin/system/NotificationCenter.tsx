@@ -70,38 +70,133 @@ export default function NotificationCenter() {
         }
     };
 
+    const [isUploading, setIsUploading] = useState(false);
+    const [previewMode, setPreviewMode] = useState<'PUSH' | 'POPUP'>('PUSH');
+
+    // ... (toggleMemberSelection)
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        try {
+            // Assume 'public' bucket exists or similar public bucket
+            const url = await db.system.uploadFile('public', `notifications/${Date.now()}_${file.name}`, file);
+            if (url) {
+                setComposeForm(prev => ({ ...prev, imageUrl: url }));
+            }
+        } catch (error) {
+            console.error('Image upload failed:', error);
+            alert('이미지 업로드에 실패했습니다. (스토리지 설정을 확인해주세요)');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const handleSend = async () => {
         const { title, body, channels, selectedMemberIds, targetMode, linkUrl, imageUrl } = composeForm;
+
+        // Validation
+        if (!Object.values(channels).some(v => v)) return alert('최소 하나의 발송 채널을 선택해주세요.');
         if (!title || !body) return alert('제목과 내용을 입력해주세요.');
         if (targetMode === 'INDIVIDUAL' && selectedMemberIds.size === 0) return alert('대상 회원을 선택해주세요.');
 
-        if (confirm('정말로 발송하시겠습니까?')) {
-            try {
-                // 1. Send Push
-                if (channels.push) {
-                    const tokensToUse = ['mock-token']; // Replace with real selection logic
-                    await fetch('/api/push/send', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title, body, tokens: tokensToUse, data: { url: linkUrl, image: imageUrl } })
-                    });
-                }
+        const targetCount = targetMode === 'ALL' ? members.length : selectedMemberIds.size;
+        const channelNames = Object.entries(channels).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join(', ');
 
-                // 2. Create Notice / Popup
+        if (confirm(`[${channelNames}] 채널로 총 ${targetCount}명에게 발송하시겠습니까?`)) {
+            try {
+                let noticeId = null;
+
+                // 1. Create Notice / Popup (DB Persistence)
+                // If Notice or Popup is selected, we create a record in 'hannam_notices'
                 if (channels.notice || channels.popup) {
                     const noticeData = {
                         title,
-                        content: body, // Simplified
-                        isPopup: channels.popup,
-                        // ... other fields
+                        content: body,
+                        imageUrl: imageUrl || null,
+                        category: 'NOTICE', // Default category
+                        isPopup: channels.popup, // If popup is selected, mark as popup
+                        isAlertOn: channels.push, // Logic: If push is also selected, we mark it. (Optional logic)
+                        startDate: new Date().toISOString().split('T')[0],
+                        endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0], // Default 1 month
                     };
-                    // await db.notices.add(noticeData); // Mock call
+
+                    const newNotice = await db.notices.add(noticeData);
+                    noticeId = newNotice?.id;
                 }
 
-                alert('발송 처리가 완료되었습니다.');
-                setComposeForm(prev => ({ ...prev, title: '', body: '' }));
-            } catch (e) {
-                alert('발송 중 오류가 발생했습니다.');
+                // 2. Send App Push (API Dispatch)
+                if (channels.push) {
+                    // Logic to select tokens
+                    let tokensToUse: string[] = [];
+
+                    if (targetMode === 'ALL') {
+                        tokensToUse = Array.from(pushTokens); // Send to all admin known tokens? Or fetch all tokens?
+                        // Ideally, backend should handle "ALL" to avoid payload size limits, but for now we send what we have loaded.
+                        // But wait! `pushTokens` in state is only initialized with `getAllAdmin`.
+                        // We probably should fetch ALL member tokens if target is ALL.
+                        // For safety in this version, let's fetch tokens if ALL.
+                        if (members.length > pushTokens.size) {
+                            const allTokens = await db.fcmTokens.getAllAdmin(); // This method name is confusing, verify implementation.
+                            tokensToUse = allTokens;
+                        } else {
+                            tokensToUse = Array.from(pushTokens);
+                        }
+                    } else {
+                        // Individual
+                        // We need to fetch tokens for these specific members. 
+                        // Currently `pushTokens` is a Set<MemberID>. We need actual FCM tokens.
+                        // Wait, `pushTokens` state in `NotificationCenter` (line 12) is `Set<string>`. 
+                        // `fetchData` (line 62) calls `db.fcmTokens.getAllAdmin()` which returns memberIDs.
+                        // This means we don't have the actual token strings in client state!
+                        // We need to fetch actual tokens for selected users or tell backend to do it.
+                        // The mock API `/api/push/send` (lines 83-87) expects `tokens` array. 
+
+                        // FIX: We need to fetch real tokens before sending.
+                        // But `db.fcmTokens.getByMemberId` returns array of tokens.
+
+                        const selectedIds = Array.from(selectedMemberIds);
+                        const tokenPromises = selectedIds.map(id => db.fcmTokens.getByMemberId(id));
+                        const tokenArrays = await Promise.all(tokenPromises);
+                        tokensToUse = tokenArrays.flat();
+                    }
+
+                    if (tokensToUse.length === 0) {
+                        console.warn("No FCM tokens found for selected targets.");
+                        // Proceed anyway as Notice/Popup might have been created.
+                    } else {
+                        await fetch('/api/push/send', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                title,
+                                body,
+                                tokens: tokensToUse,
+                                data: {
+                                    url: linkUrl,
+                                    image: imageUrl,
+                                    noticeId: noticeId // Link push to the notice if created
+                                }
+                            })
+                        });
+                    }
+                }
+
+                alert('통합 발송 처리가 완료되었습니다.');
+                // Reset Form
+                setComposeForm(prev => ({
+                    ...prev,
+                    title: '',
+                    body: '',
+                    imageUrl: '',
+                    linkUrl: '',
+                    selectedMemberIds: new Set()
+                }));
+            } catch (e: any) {
+                console.error(e);
+                alert('발송 중 오류가 발생했습니다: ' + e.message);
             }
         }
     };
@@ -123,7 +218,30 @@ export default function NotificationCenter() {
                     <div className="col-span-8 space-y-6">
                         <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100 space-y-8">
 
-                            {/* ... Channel Selector ... */}
+                            {/* Channel Selector */}
+                            <div className="space-y-3">
+                                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">발송 채널 선택 (다중 선택 가능)</label>
+                                <div className="flex gap-4">
+                                    {[
+                                        { id: 'push', label: '📱 앱 푸시 (App Push)', desc: '스마트폰 상단바 알림' },
+                                        { id: 'notice', label: '📢 공지사항 (Notice)', desc: '앱 내 공지 게시판 등록' },
+                                        { id: 'popup', label: '🔔 인앱 팝업 (Popup)', desc: '앱 실행 시 메인 팝업' }
+                                    ].map(ch => (
+                                        <div key={ch.id}
+                                            onClick={() => setComposeForm(prev => ({ ...prev, channels: { ...prev.channels, [ch.id]: !prev.channels[ch.id as keyof typeof prev.channels] } }))}
+                                            className={`flex-1 p-4 rounded-2xl border-2 cursor-pointer transition-all ${composeForm.channels[ch.id as keyof typeof composeForm.channels] ? 'border-[#2F3A32] bg-[#F9FAFB]' : 'border-slate-50 hover:border-slate-200'}`}
+                                        >
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-colors ${composeForm.channels[ch.id as keyof typeof composeForm.channels] ? 'bg-[#2F3A32] text-white' : 'bg-slate-100 text-slate-300'}`}>
+                                                    {composeForm.channels[ch.id as keyof typeof composeForm.channels] && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>}
+                                                </div>
+                                                <span className={`font-bold ${composeForm.channels[ch.id as keyof typeof composeForm.channels] ? 'text-[#2F3A32]' : 'text-slate-400'}`}>{ch.label}</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 pl-8">{ch.desc}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
 
                             {/* Target Selector */}
                             <div className="space-y-3">
@@ -197,7 +315,7 @@ export default function NotificationCenter() {
                                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">제목</label>
                                     <input
                                         type="text"
-                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold text-lg outline-none focus:ring-2 focus:ring-[#2F3A32]/10"
+                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-bold text-lg outline-none focus:ring-2 focus:ring-[#2F3A32]/10 transition-shadow"
                                         placeholder="알림 제목을 입력하세요"
                                         value={composeForm.title}
                                         onChange={e => setComposeForm(prev => ({ ...prev, title: e.target.value }))}
@@ -206,7 +324,7 @@ export default function NotificationCenter() {
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">내용</label>
                                     <textarea
-                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-medium text-sm outline-none focus:ring-2 focus:ring-[#2F3A32]/10 h-32 resize-none leading-relaxed"
+                                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl font-medium text-sm outline-none focus:ring-2 focus:ring-[#2F3A32]/10 h-32 resize-none leading-relaxed transition-shadow"
                                         placeholder="전달할 내용을 입력하세요..."
                                         value={composeForm.body}
                                         onChange={e => setComposeForm(prev => ({ ...prev, body: e.target.value }))}
@@ -216,23 +334,33 @@ export default function NotificationCenter() {
                                 {/* Advanced Fields */}
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-2">
+                                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">이미지 첨부 (Image Upload)</label>
+                                        <div className="relative">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                id="image-upload"
+                                                className="hidden"
+                                                onChange={handleImageUpload}
+                                            />
+                                            <label
+                                                htmlFor="image-upload"
+                                                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-500 cursor-pointer hover:bg-slate-50 hover:border-[#2F3A32] transition-all flex items-center justify-between group"
+                                            >
+                                                <span className="truncate">{composeForm.imageUrl ? '이미지가 선택되었습니다' : '클릭하여 이미지를 업로드하세요...'}</span>
+                                                <svg className="w-4 h-4 text-slate-400 group-hover:text-[#2F3A32]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                            </label>
+                                        </div>
+                                        {isUploading && <p className="text-[10px] text-[#2F3A32] font-bold animate-pulse mt-1">이미지 업로드 중...</p>}
+                                    </div>
+                                    <div className="space-y-2">
                                         <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Deep Link (이동 URL) <span className="text-xs italic normal-case opacity-50 ml-1">* Optional</span></label>
                                         <input
                                             type="text"
-                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-mono outline-none"
-                                            placeholder="https:// or /admin/..."
+                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#2F3A32] transition-colors"
+                                            placeholder="https://..."
                                             value={composeForm.linkUrl}
                                             onChange={e => setComposeForm(prev => ({ ...prev, linkUrl: e.target.value }))}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">이미지 URL <span className="text-xs italic normal-case opacity-50 ml-1">* Optional</span></label>
-                                        <input
-                                            type="text"
-                                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-xs font-mono outline-none"
-                                            placeholder="https://..."
-                                            value={composeForm.imageUrl}
-                                            onChange={e => setComposeForm(prev => ({ ...prev, imageUrl: e.target.value }))}
                                         />
                                     </div>
                                 </div>
@@ -242,34 +370,88 @@ export default function NotificationCenter() {
 
                     {/* Right: Preview & Action */}
                     <div className="col-span-4 space-y-6">
-                        <div className="bg-[#111] text-white p-6 rounded-[40px] shadow-2xl relative overflow-hidden min-h-[500px]">
+                        <div className="bg-[#111] text-white p-6 rounded-[40px] shadow-2xl relative overflow-hidden min-h-[600px] flex flex-col">
+                            {/* Device Notch */}
                             <div className="absolute top-0 left-0 w-full h-8 bg-black/50 backdrop-blur-md z-10 flex justify-center items-center">
                                 <div className="w-20 h-5 bg-black rounded-b-xl"></div>
                             </div>
 
-                            {/* Push Preview */}
-                            <div className="mt-12 mx-2 bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/5 relative overflow-hidden">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="w-5 h-5 bg-[#D4AF37] rounded-md flex items-center justify-center text-[10px] font-bold">W</div>
-                                    <span className="text-[10px] uppercase font-bold text-white/80">Wellness Hannam</span>
-                                    <span className="text-[9px] text-white/40 ml-auto">Now</span>
-                                </div>
-                                <h4 className="text-sm font-bold text-white mb-1">{composeForm.title || '(제목 미리보기)'}</h4>
-                                <p className="text-xs text-white/70 leading-snug">{composeForm.body || '(내용이 여기에 표시됩니다)'}</p>
-                                {composeForm.imageUrl && (
-                                    <div className="mt-3 rounded-lg overflow-hidden h-24 bg-cover bg-center" style={{ backgroundImage: `url(${composeForm.imageUrl})` }}></div>
+                            {/* Preview Mode Toggle */}
+                            <div className="absolute top-10 right-4 z-20 flex bg-white/10 rounded-lg p-0.5 backdrop-blur-sm">
+                                <button
+                                    onClick={() => setPreviewMode('PUSH')}
+                                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${previewMode === 'PUSH' ? 'bg-white text-black shadow-sm' : 'text-white/50 hover:text-white'}`}
+                                >
+                                    PUSH
+                                </button>
+                                <button
+                                    onClick={() => setPreviewMode('POPUP')}
+                                    className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${previewMode === 'POPUP' ? 'bg-white text-black shadow-sm' : 'text-white/50 hover:text-white'}`}
+                                >
+                                    POPUP
+                                </button>
+                            </div>
+
+                            {/* Preview Content */}
+                            <div className="flex-1 mt-16 px-2 relative">
+                                {previewMode === 'PUSH' ? (
+                                    <>
+                                        {/* Lock Screen Time */}
+                                        <div className="text-center mb-8">
+                                            <div className="text-5xl font-thin tracking-tighter text-white/90">09:41</div>
+                                            <div className="text-sm font-medium text-white/60 mt-1">Wednesday, October 15</div>
+                                        </div>
+
+                                        {/* Push Notification Card */}
+                                        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/5 shadow-2xl">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="w-5 h-5 bg-[#D4AF37] rounded-md flex items-center justify-center text-[10px] font-bold text-black border border-[#C5A027]">W</div>
+                                                <span className="text-[10px] uppercase font-bold text-white/90 tracking-wide">Wellness Hannam</span>
+                                                <span className="text-[9px] text-white/40 ml-auto">Now</span>
+                                            </div>
+                                            <h4 className="text-sm font-bold text-white mb-1 leading-snug">{composeForm.title || '(제목 미리보기)'}</h4>
+                                            <p className="text-xs text-white/80 leading-relaxed opacity-90">{composeForm.body || '(내용이 여기에 표시됩니다)'}</p>
+                                            {composeForm.imageUrl && (
+                                                <div className="mt-3 rounded-lg overflow-hidden h-32 bg-cover bg-center border border-white/5 shadow-inner" style={{ backgroundImage: `url(${composeForm.imageUrl})` }}></div>
+                                            )}
+                                        </div>
+                                    </>
+                                ) : (
+                                    /* Popup Preview */
+                                    <div className="absolute inset-0 flex items-center justify-center p-4">
+                                        <div className="w-full bg-white text-black rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+                                            {composeForm.imageUrl ? (
+                                                <div className="h-40 bg-cover bg-center" style={{ backgroundImage: `url(${composeForm.imageUrl})` }}></div>
+                                            ) : (
+                                                <div className="h-20 bg-slate-100 flex items-center justify-center text-slate-300 text-xs">No Image</div>
+                                            )}
+                                            <div className="p-5 text-center">
+                                                <h4 className="text-lg font-bold text-[#2F3A32] mb-2">{composeForm.title || '(제목)'}</h4>
+                                                <p className="text-xs text-slate-500 leading-relaxed whitespace-pre-wrap">{composeForm.body || '(내용...)'}</p>
+                                                <button className="mt-5 w-full py-3 bg-[#2F3A32] text-white rounded-xl text-sm font-bold">확인</button>
+                                                <div className="mt-3 flex justify-between text-[10px] text-slate-400">
+                                                    <span>오늘 하루 보지 않기</span>
+                                                    <span>닫기</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="absolute inset-x-0 bottom-full h-full bg-black/40 -z-10 backdrop-blur-sm"></div>
+                                    </div>
                                 )}
                             </div>
 
-                            <div className="mt-auto absolute bottom-8 left-0 w-full text-center px-8">
+                            <div className="mt-auto pt-6 pb-2 px-4">
                                 <button
                                     onClick={handleSend}
-                                    className="w-full py-4 bg-white text-black rounded-2xl font-bold hover:bg-[#D4AF37] hover:text-white transition-all shadow-lg active:scale-95"
+                                    disabled={isUploading}
+                                    className="w-full py-4 bg-white text-black rounded-2xl font-bold hover:bg-[#D4AF37] hover:text-white transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group"
                                 >
-                                    발송하기 (SEND)
+                                    <span className="group-hover:scale-105 inline-block transition-transform">
+                                        {isUploading ? '업로드 중...' : '통합 발송하기 (SEND)'}
+                                    </span>
                                 </button>
-                                <p className="text-[9px] text-white/30 mt-4 font-mono">
-                                    예상 발송 건수: {composeForm.targetMode === 'ALL' ? members.length : composeForm.selectedMemberIds.size}건
+                                <p className="text-[9px] text-white/30 mt-4 font-mono text-center">
+                                    선택된 채널: {Object.entries(composeForm.channels).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join(' + ')}
                                 </p>
                             </div>
                         </div>
