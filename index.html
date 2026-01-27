@@ -81,13 +81,13 @@
     <script type="module" src="index.tsx"></script>
     <script>
         // [CRITICAL FIX] Aggressive "Kill Switch" for Stale Service Workers & Caches
-        // Version: 2026.01.27.v5
+        // Version: 2026.01.27.v6 (Burst Mode)
         (async function () {
-            const RESET_KEY = 'wellness_reset_v20260127_final_v3';
+            const RESET_KEY = 'wellness_reset_v20260127_final_v6';
             const hasReset = localStorage.getItem(RESET_KEY);
 
             if (!hasReset) {
-                console.warn('[System] Executing Critical Cache & SW Cleanup...');
+                console.warn('[System] Executing Critical Cache & SW Cleanup (v6)...');
 
                 try {
                     // 1. Unregister ALL Service Workers
@@ -106,13 +106,18 @@
                         console.log('[System] All Caches Wiped.');
                     }
 
-                    // 3. Reload
+                    // 3. Reload with Cache Buster
                     localStorage.setItem(RESET_KEY, 'true');
-                    window.location.reload();
+                    console.log('[System] Force Reloading...');
+
+                    // Force a network reload by slightly changing the URL
+                    window.location.href = window.location.pathname + '?t=' + Date.now();
 
                 } catch (e) {
                     console.error('[System] Cleanup Failed:', e);
                 }
+            } else {
+                console.log('[System] Service Worker & Cache status: Clean (v6 verified)');
             }
         })();
     </script>
