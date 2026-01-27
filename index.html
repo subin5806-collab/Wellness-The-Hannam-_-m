@@ -90,20 +90,31 @@
             const ua = navigator.userAgent;
             const isKakao = /KAKAOTALK/i.test(ua);
 
-            // 1. KAKAOTALK SPECIFIC FIX: KILL ALL SWs & EXIT
+            // 1. KAKAOTALK/NATIVE APP SPECIFIC FIX: KILL SWs & DISABLE
             // Kakao in-app browser hates Service Workers -> White Screen.
-            if (isKakao) {
-                console.warn('[System] KakaoTalk detected. Disabling Service Workers.');
+            if (/KAKAOTALK|DaumApps/i.test(ua)) {
+                console.warn('[System] Native App (Kakao) detected. Disabling Service Workers.');
+
+                // Unregister existing workers immediately
                 if ('serviceWorker' in navigator) {
-                    const registrations = await navigator.serviceWorker.getRegistrations();
-                    for (const registration of registrations) {
-                        try {
-                            await registration.unregister();
-                            console.log('[System] Unregistered SW for Kakao:', registration.scope);
-                        } catch (e) { console.error(e); }
-                    }
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        for (const registration of registrations) {
+                            registration.unregister().then(() => console.log('Kakao SW Unregistered'));
+                        }
+                    });
                 }
-                // Do NOT register anything. Just exit.
+
+                // Force clear cache once for Kakao users to fix white screen
+                const KAKAO_RESET = 'kakao_reset_v1';
+                if (!localStorage.getItem(KAKAO_RESET) && 'caches' in window) {
+                    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
+                        .then(() => {
+                            localStorage.setItem(KAKAO_RESET, 'true');
+                            window.location.reload();
+                        });
+                }
+
+                // IMPORTANT: Stop execution of any SW logic here.
                 return;
             }
 

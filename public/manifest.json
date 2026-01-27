@@ -1,6 +1,6 @@
 {
     "name": "Wellness, The Hannam",
-    "short_name": "웰니스 더 한남",
+    "short_name": "웰니스, 더 한남",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#FFFFFF",
@@ -8,12 +8,12 @@
     "orientation": "portrait-primary",
     "icons": [
         {
-            "src": "/pwa-icon-v2.png",
+            "src": "/pwa-icon-v2.png?v=2",
             "type": "image/png",
             "sizes": "512x512"
         },
         {
-            "src": "/pwa-icon-v2.png",
+            "src": "/pwa-icon-v2.png?v=2",
             "type": "image/png",
             "sizes": "192x192"
         }
