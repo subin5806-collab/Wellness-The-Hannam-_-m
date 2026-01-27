@@ -12,7 +12,31 @@ import MasterSettings from './pages/admin/system/MasterSettings';
 import CareRecordManagement from './pages/admin/care/CareRecordManagement';
 import CareHistorySplitPage from './pages/admin/care/CareHistorySplitPage';
 
+import { FcmService } from './src/firebase';
+
 const App: React.FC = () => {
+  // [PWA] Request Notification Permission on Mount 
+  useEffect(() => {
+    const initFcm = async () => {
+      // We read from localStorage directly or use state
+      const saved = localStorage.getItem('hannam_auth_session');
+      if (saved) {
+        const session = JSON.parse(saved);
+        if (session?.id) {
+          // Pass the ID (Phone Number or UUID) to save token
+          await FcmService.requestPermission(session.id);
+        }
+      }
+    };
+    initFcm();
+
+    // Listen for foreground messages
+    FcmService.onForegroundMessage((payload) => {
+      console.log("Foreground Push:", payload);
+      // Optional: Toast
+    });
+  }, []);
+
   const [auth, setAuth] = useState<{ type: 'admin' | 'member' | null; id: string | null; email?: string }>(() => {
     const saved = localStorage.getItem('hannam_auth_session');
     return saved ? JSON.parse(saved) : { type: null, id: null };

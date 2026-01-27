@@ -1081,14 +1081,30 @@ export const db = {
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel') as Notification;
     }
-  },
-  adminNotes: {
-    getAll: async () => {
-      const { data } = await supabase.from('hannam_admin_private_notes')
-        .select('*')
-        .order('created_at', { ascending: false });
-      return transformKeys(data || [], 'toCamel') as AdminPrivateNote[];
+  }
+},
+  fcmTokens: {
+    add: async (memberId: string, token: string) => {
+      const { error } = await supabase.from('hannam_fcm_tokens').upsert({
+      member_id: memberId,
+      token: token,
+      device_type: 'web',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'member_id, token' });
+if (error) console.error("Failed to save FCM token:", error);
     },
+getByMemberId: async (memberId: string) => {
+  const { data } = await supabase.from('hannam_fcm_tokens').select('token').eq('member_id', memberId);
+  return data?.map(r => r.token) || [];
+}
+  },
+adminNotes: {
+  getAll: async () => {
+    const { data } = await supabase.from('hannam_admin_private_notes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    return transformKeys(data || [], 'toCamel') as AdminPrivateNote[];
+  },
     getByCareRecordId: async (careRecordId: string) => {
       // [SECURITY] RLS will enforce admin-only access
       const { data } = await supabase.from('hannam_admin_private_notes')
@@ -1097,49 +1113,49 @@ export const db = {
         .maybeSingle();
       return transformKeys(data, 'toCamel') as AdminPrivateNote | null;
     },
-    upsert: async (careRecordId: string, content: string) => {
-      const saved = localStorage.getItem('hannam_auth_session');
-      const auth = saved ? JSON.parse(saved) : null;
-      const adminEmail = auth?.email || 'unknown';
+      upsert: async (careRecordId: string, content: string) => {
+        const saved = localStorage.getItem('hannam_auth_session');
+        const auth = saved ? JSON.parse(saved) : null;
+        const adminEmail = auth?.email || 'unknown';
 
-      // Check existing
-      const { data: existing } = await supabase.from('hannam_admin_private_notes')
-        .select('id')
-        .eq('care_record_id', careRecordId)
-        .maybeSingle();
-
-      let result;
-      if (existing) {
-        // Update
-        const { data, error } = await supabase.from('hannam_admin_private_notes')
-          .update({
-            content,
-            updated_at: new Date().toISOString()
-          })
+        // Check existing
+        const { data: existing } = await supabase.from('hannam_admin_private_notes')
+          .select('id')
           .eq('care_record_id', careRecordId)
-          .select();
-        if (error) throw error;
-        result = data?.[0];
-      } else {
-        // Insert
-        // Need to fetch memberId from careRecord to fill the foreign key
-        const { data: record } = await supabase.from('hannam_care_records').select('member_id').eq('id', careRecordId).single();
-        const memberId = record?.member_id;
+          .maybeSingle();
 
-        const { data, error } = await supabase.from('hannam_admin_private_notes')
-          .insert([{
-            care_record_id: careRecordId,
-            member_id: memberId, // Included for redundancy/RLS if needed
-            admin_email: adminEmail,
-            content,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }])
-          .select();
-        if (error) throw error;
-        result = data?.[0];
+        let result;
+        if (existing) {
+          // Update
+          const { data, error } = await supabase.from('hannam_admin_private_notes')
+            .update({
+              content,
+              updated_at: new Date().toISOString()
+            })
+            .eq('care_record_id', careRecordId)
+            .select();
+          if (error) throw error;
+          result = data?.[0];
+        } else {
+          // Insert
+          // Need to fetch memberId from careRecord to fill the foreign key
+          const { data: record } = await supabase.from('hannam_care_records').select('member_id').eq('id', careRecordId).single();
+          const memberId = record?.member_id;
+
+          const { data, error } = await supabase.from('hannam_admin_private_notes')
+            .insert([{
+              care_record_id: careRecordId,
+              member_id: memberId, // Included for redundancy/RLS if needed
+              admin_email: adminEmail,
+              content,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }])
+            .select();
+          if (error) throw error;
+          result = data?.[0];
+        }
+        return transformKeys(result, 'toCamel') as AdminPrivateNote;
       }
-      return transformKeys(result, 'toCamel') as AdminPrivateNote;
-    }
-  }
+}
 };
