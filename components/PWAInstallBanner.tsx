@@ -43,7 +43,7 @@ export default function PWAInstallBanner() {
     if (!isVisible) return null;
 
     return (
-        <div className="fixed top-0 left-0 w-full z-[9999] bg-white border-b border-slate-200 shadow-md animate-in slide-in-from-top duration-500">
+        <div className="fixed top-0 left-0 w-full z-[9999] bg-white border-b border-slate-200 shadow-md">
             <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-white rounded-lg border border-slate-100 flex items-center justify-center shadow-sm overflow-hidden shrink-0">
