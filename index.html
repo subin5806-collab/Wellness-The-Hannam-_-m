@@ -80,25 +80,41 @@
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
     <script>
-        // [Emergency Fix] Force Reset Service Workers to clear stale cache
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (registrations) {
-                for (let registration of registrations) {
-                    // Keep firebase messaging, unregister others
-                    if (registration.scope.includes('firebase')) continue;
+        // [CRITICAL FIX] Aggressive "Kill Switch" for Stale Service Workers & Caches
+        // Version: 2026.01.27.v5
+        (async function () {
+            const RESET_KEY = 'wellness_reset_v20260127_final_v3';
+            const hasReset = localStorage.getItem(RESET_KEY);
 
-                    // [Force Refresh] Unregister cached SWs to fix white screen
-                    const FORCE_RESET_KEY = 'wellness_pwa_reset_v20260127_v2';
-                    if (!localStorage.getItem(FORCE_RESET_KEY)) {
-                        console.warn('[System] Force resetting service worker for update...');
-                        registration.unregister().then(() => {
-                            localStorage.setItem(FORCE_RESET_KEY, 'true');
-                            window.location.reload();
-                        });
+            if (!hasReset) {
+                console.warn('[System] Executing Critical Cache & SW Cleanup...');
+
+                try {
+                    // 1. Unregister ALL Service Workers
+                    if ('serviceWorker' in navigator) {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
+                        for (const registration of registrations) {
+                            await registration.unregister();
+                            console.log('[System] Unregistered SW:', registration.scope);
+                        }
                     }
+
+                    // 2. Clear ALL Cache Storage
+                    if ('caches' in window) {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(key => caches.delete(key)));
+                        console.log('[System] All Caches Wiped.');
+                    }
+
+                    // 3. Reload
+                    localStorage.setItem(RESET_KEY, 'true');
+                    window.location.reload();
+
+                } catch (e) {
+                    console.error('[System] Cleanup Failed:', e);
                 }
-            });
-        }
+            }
+        })();
     </script>
 </body>
 
