@@ -78,9 +78,37 @@ const EditReservationModal: React.FC<EditReservationModalProps> = ({ reservation
                             <h2 className="text-2xl font-bold text-[#2F3A32]">Edit Reservation</h2>
                             <p className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest mt-1">예약 정보 수정</p>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                            <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={async () => {
+                                    if (!confirm('해당 회원에게 방문 알림(Push)을 전송하시겠습니까?')) return;
+                                    try {
+                                        const tokens = await db.fcmTokens.getByMemberId(reservation.memberId);
+                                        if (!tokens || tokens.length === 0) {
+                                            alert('앱을 설치하지 않았거나 알림 권한이 없는 회원입니다.');
+                                            return;
+                                        }
+                                        await fetch('/api/push/send', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                title: '📅 예약 방문 알림',
+                                                body: `회원님, ${resData.date} ${resData.time}에 예정된 방문 잊지 않으셨나요? :)`,
+                                                tokens: tokens,
+                                                data: { url: '/member' }
+                                            })
+                                        });
+                                        alert('알림을 성공적으로 보냈습니다.');
+                                    } catch (e) { alert('발송 실패'); }
+                                }}
+                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold hover:bg-indigo-100 transition-colors flex items-center gap-1"
+                            >
+                                🔔 방문 독려
+                            </button>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">

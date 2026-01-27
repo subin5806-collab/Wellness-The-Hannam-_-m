@@ -17,14 +17,13 @@ try {
 
     // Background Message Handler
     messaging.onBackgroundMessage((payload) => {
-        console.log('[firebase-messaging-sw.js] Background message: ', payload);
+        console.log('[firebase-messaging-sw.js] Received background message ', payload);
+        // Customize notification here
         const notificationTitle = payload.notification?.title || 'Wellness The Hannam';
         const notificationOptions = {
-            body: payload.notification?.body || '새로운 알림이 도착했습니다.',
-            icon: '/pwa-icon.png', // Uses the PWA icon
-            badge: '/pwa-icon.png', // Small badge
-            data: payload.data,
-            vibrate: [200, 100, 200]
+            body: payload.notification?.body,
+            icon: '/pwa-icon.png',
+            data: payload.data // Pass data (url, image) to notification
         };
 
         self.registration.showNotification(notificationTitle, notificationOptions);

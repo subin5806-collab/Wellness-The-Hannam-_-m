@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { title, body, tokens } = req.body;
+    const { title, body, tokens, data } = req.body;
 
     if (!title || !body || !tokens || !Array.isArray(tokens) || tokens.length === 0) {
         return res.status(400).json({ error: 'Missing title, body, or tokens' });
@@ -19,6 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[Push Mock] Sending to', tokens.length, 'devices');
     console.log('[Title]', title);
     console.log('[Body]', body);
+    if (data) console.log('[Data]', data);
     console.log('------------------------------------------------');
 
     // Simulate delay
