@@ -31,16 +31,16 @@ export default function NotificationCenter() {
     }, []);
 
     const loadSettings = async () => {
-        const { data } = await supabase.from('hannam_system_settings').select('value').eq('key', 'NOTIFICATION_CONFIG').single();
-        if (data?.value) {
-            setAutoConfig(data.value);
+        const { data } = await supabase.from('hannam_system_settings').select('setting_value').eq('setting_key', 'NOTIFICATION_CONFIG').single();
+        if (data?.setting_value) {
+            setAutoConfig(data.setting_value);
         }
     };
 
     const saveSettings = async (newConfig: any) => {
         const { error } = await supabase.from('hannam_system_settings').upsert({
-            key: 'NOTIFICATION_CONFIG',
-            value: newConfig,
+            setting_key: 'NOTIFICATION_CONFIG',
+            setting_value: newConfig,
             updated_at: new Date().toISOString()
         });
         if (error) alert('설정 저장 실패: ' + error.message);

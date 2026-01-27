@@ -20,11 +20,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 1. Load Settings
         const { data: setting } = await supabase
             .from('hannam_system_settings')
-            .select('value')
-            .eq('key', 'NOTIFICATION_CONFIG')
+            .select('setting_value')
+            .eq('setting_key', 'NOTIFICATION_CONFIG')
             .single();
 
-        const config = setting?.value || {};
+        const config = setting?.setting_value || {};
         const reminderConfig = config.visitReminder || { enabled: false };
 
         if (!reminderConfig.enabled) {
