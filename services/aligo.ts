@@ -66,7 +66,7 @@ export const AligoService = {
         // We will assume db.ts/notices is accessible or we add a helper.
         // Actually, let's implement the DB fetch here for isolation or consistency.
         // Wait, 'db' object is robust.
-        const { data } = await db.notices.getById('ALIMTALK_CONFIG');
+        const data = await db.notices.getById('ALIMTALK_CONFIG');
         if (data?.content) {
             try { return JSON.parse(data.content); } catch (e) { return null; }
         }
@@ -80,27 +80,22 @@ export const AligoService = {
     },
 
     updateConfig: async (config: any) => {
-        // Upsert to hannam_notices
-        // We need to use supabase client from db.ts
-        // Accessing private supabase instance from db.ts? 'db' usually exposes methods.
-        // We might need to add `saveConfig` to db.ts or use `db.notices.add/update`.
-        // Notices table: id, title, content, type...
-        // We will use upsert logic.
-        // db.notices doesn't have upsert exposed typically?
-        // Let's rely on `db.notices.add` if not exists or `update`.
-        // Actually, `update` needs ID.
-        // Let's try to fetch first, then update or add.
-
-        // Check exist
-        const current = await AligoService.getConfig();
-        // If current is returned (default or real), we just want to save.
-        // We need to know if the ROW exists.
-
-        // Direct Supabase access would be better but `db` encapsulates it.
-        // I will use `db.notices.getAll`? No.
-        // Let's look at `db.ts` later to add a helper or use what we have.
-        // For now, I'll return a placeholder and we will implement the DB logic in db.ts + UI.
-        return { success: true }; // Placeholder
+        try {
+            await (db.notices as any).upsert({
+                id: 'ALIMTALK_CONFIG',
+                title: 'System Config (AlimTalk)',
+                content: JSON.stringify(config),
+                category: 'SYSTEM',
+                isPopup: false,
+                isAlertOn: false,
+                startDate: new Date().toISOString(),
+                endDate: '2099-12-31'
+            });
+            return { success: true };
+        } catch (e) {
+            console.error("Failed to save config", e);
+            return { success: false, message: (e as any).message };
+        }
     },
 
 

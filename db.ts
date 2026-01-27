@@ -1028,6 +1028,14 @@ export const db = {
       const { error } = await supabase.from('hannam_notices').delete().eq('id', id);
       if (error) throw error;
     },
+    upsert: async (notice: any) => {
+      const { data, error } = await supabase.from('hannam_notices').upsert([transformKeys({
+        updatedAt: new Date().toISOString(),
+        ...notice
+      }, 'toSnake')]).select();
+      if (error) throw error;
+      return transformKeys(data?.[0], 'toCamel') as Notice;
+    },
     getActiveNotices: async () => {
       try {
         const today = new Date().toISOString().split('T')[0];

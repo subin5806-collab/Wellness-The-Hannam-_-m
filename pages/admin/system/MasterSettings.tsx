@@ -1172,7 +1172,7 @@ const MasterSettings: React.FC = () => {
                         const content = prompt('템플릿 내용');
                         if (name && content) {
                           AligoService.addTemplate(name, content).then(res => {
-                            if (res.code === 0) { alert('등록 요청되었습니다.'); handleTabChange('ALIMTALK'); }
+                            if (res.code === 0) { alert('등록 요청되었습니다.'); setActiveTab('ALIMTALK'); }
                             else alert('Error: ' + res.message);
                           });
                         }
