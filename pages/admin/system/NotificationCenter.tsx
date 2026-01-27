@@ -396,7 +396,7 @@ export default function NotificationCenter() {
                                         <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/5 shadow-2xl">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <div className="w-5 h-5 bg-[#D4AF37] rounded-md flex items-center justify-center text-[10px] font-bold text-black border border-[#C5A027]">W</div>
-                                                <span className="text-[10px] uppercase font-bold text-white/90 tracking-wide">Wellness Hannam</span>
+                                                <span className="text-[10px] uppercase font-bold text-white/90 tracking-wide">웰니스, 더 한남</span>
                                                 <span className="text-[9px] text-white/40 ml-auto">Now</span>
                                             </div>
                                             <h4 className="text-sm font-bold text-white mb-1 leading-snug">{composeForm.title || '(제목 미리보기)'}</h4>

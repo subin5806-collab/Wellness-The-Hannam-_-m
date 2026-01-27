@@ -19,6 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('[Push Mock] Sending to', tokens.length, 'devices');
     console.log('[Title]', title);
     console.log('[Body]', body);
+    console.log('[Sender] 웰니스, 더 한남');
     if (data) console.log('[Data]', data);
     console.log('------------------------------------------------');
 

@@ -1018,6 +1018,7 @@ export const db = {
     add: async (notice: any) => {
       const { data, error } = await supabase.from('hannam_notices').insert([transformKeys({
         id: `NOTICE-${Date.now()}`,
+        author: notice.author || 'Wellness, The Hannam',
         ...notice,
         createdAt: new Date().toISOString()
       }, 'toSnake')]).select();
