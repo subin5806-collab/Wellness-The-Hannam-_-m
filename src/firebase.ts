@@ -2,14 +2,14 @@ import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { db } from "../db";
 
-// [Manual Configuration Required by User]
+// [Configured on 2026-01-27]
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyCM7qVBaXxA0DtgHQMzdx1eoIOe-SL5s2s",
+    authDomain: "wellness-the-hannam.firebaseapp.com",
+    projectId: "wellness-the-hannam",
+    storageBucket: "wellness-the-hannam.appspot.com",
+    messagingSenderId: "179021880006",
+    appId: "1:179021880006:web:9c0d6f5f72cdcbd63855c7"
 };
 
 // Initialize Firebase
@@ -26,7 +26,7 @@ export const FcmService = {
 
                 // Get Token
                 const token = await getToken(messaging, {
-                    vapidKey: "YOUR_VAPID_KEY" // User must provide VAPID Key (Web Push Certificate)
+                    vapidKey: "BK5VTVn4tr1FW1WbHirPlYcXvmEd-2dz6phcRX4BznW8THz7JvXkdwkgodbQmqjd649VgdxEuM0s764UioXC6RM"
                 });
 
                 if (token) {
@@ -39,8 +39,7 @@ export const FcmService = {
                 console.log("Notification permission denied.");
             }
         } catch (error) {
-            // Ignore "Key missing" errors for now as user hasn't set them
-            console.warn("FCM Init Error (Expected if keys are missing):", error);
+            console.warn("FCM Init Error:", error);
         }
     },
 

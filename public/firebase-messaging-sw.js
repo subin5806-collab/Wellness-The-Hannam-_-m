@@ -1,15 +1,14 @@
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-// [Manual Configuration Required by User]
-// User must update these keys after creating a Firebase Project.
+// [Configured on 2026-01-27]
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyCM7qVBaXxA0DtgHQMzdx1eoIOe-SL5s2s",
+    authDomain: "wellness-the-hannam.firebaseapp.com",
+    projectId: "wellness-the-hannam",
+    storageBucket: "wellness-the-hannam.appspot.com",
+    messagingSenderId: "179021880006",
+    appId: "1:179021880006:web:9c0d6f5f72cdcbd63855c7"
 };
 
 try {
