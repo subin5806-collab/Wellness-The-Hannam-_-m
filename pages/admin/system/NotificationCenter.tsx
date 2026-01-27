@@ -27,8 +27,25 @@ export default function NotificationCenter() {
 
     useEffect(() => {
         fetchData();
-        // Load AutoConfig from DB (Simulated)
+        loadSettings();
     }, []);
+
+    const loadSettings = async () => {
+        const { data } = await supabase.from('hannam_system_settings').select('value').eq('key', 'NOTIFICATION_CONFIG').single();
+        if (data?.value) {
+            setAutoConfig(data.value);
+        }
+    };
+
+    const saveSettings = async (newConfig: any) => {
+        const { error } = await supabase.from('hannam_system_settings').upsert({
+            key: 'NOTIFICATION_CONFIG',
+            value: newConfig,
+            updated_at: new Date().toISOString()
+        });
+        if (error) alert('설정 저장 실패: ' + error.message);
+        else alert('설정이 저장되었습니다.');
+    };
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -257,30 +274,72 @@ export default function NotificationCenter() {
             )}
 
             {activeTab === 'AUTO' && (
-                <div className="p-12 text-center text-slate-300 font-bold border-2 border-dashed border-slate-100 rounded-[40px]">
-                    ⚙️ 자동화 설정 기능 준비 중입니다.
-                </div>
-            )}
+                                className="px-4 py-2 bg-slate-50 rounded-xl text-sm font-bold text-[#2F3A32] border border-slate-200 outline-none"
+                                value={autoConfig.visitReminder.timing}
+                                onChange={e => setAutoConfig(prev => ({ ...prev, visitReminder: { ...prev.visitReminder, timing: e.target.value } }))}
+                            >
+                                <option value="1_DAY_BEFORE">1일 전 (하루 전)</option>
+                                <option value="1_HOUR_BEFORE">1시간 전</option>
+                            </select>
+                            <button
+                                onClick={() => setAutoConfig(prev => ({ ...prev, visitReminder: { ...prev.visitReminder, enabled: !prev.visitReminder.enabled } }))}
+                                className={`w-14 h-8 rounded-full transition-colors relative ${autoConfig.visitReminder.enabled ? 'bg-[#2F3A32]' : 'bg-slate-200'}`}
+                            >
+                                <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all shadow-sm ${autoConfig.visitReminder.enabled ? 'left-7' : 'left-1'}`}></div>
+                            </button>
+                        </div >
+                    </div >
 
-            {activeTab === 'HISTORY' && (
-                <div className="bg-white p-8 rounded-[32px] border border-slate-100">
-                    <table className="w-full text-left">
-                        <thead className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                            <tr>
-                                <th className="pb-4">발송 일시</th>
-                                <th className="pb-4">채널</th>
-                                <th className="pb-4">제목</th>
-                                <th className="pb-4 text-right">수신자 수</th>
-                            </tr>
-                        </thead>
-                        <tbody className="text-sm font-medium text-slate-600">
-                            <tr>
-                                <td colSpan={4} className="py-20 text-center text-slate-300 italic">아직 발송된 이력이 없습니다.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            )}
+        {/* Etiquette Mode */ }
+        < div className = "flex items-start justify-between pt-8 border-t border-slate-50" >
+                        <div className="space-y-1">
+                            <h4 className="text-xl font-bold text-[#2F3A32]">🌙 에티켓 모드 (야간 발송 제한)</h4>
+                            <p className="text-sm text-slate-400">설정된 시간대에는 자동 알림 발송을 제한합니다.</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-sm font-bold text-slate-500">
+                                <input type="time" value={autoConfig.etiquette.start} onChange={e => setAutoConfig(prev => ({ ...prev, etiquette: { ...prev.etiquette, start: e.target.value } }))} className="px-3 py-2 bg-slate-50 rounded-lg outline-none" />
+                                <span>~</span>
+                                <input type="time" value={autoConfig.etiquette.end} onChange={e => setAutoConfig(prev => ({ ...prev, etiquette: { ...prev.etiquette, end: e.target.value } }))} className="px-3 py-2 bg-slate-50 rounded-lg outline-none" />
+                            </div>
+                            <button
+                                onClick={() => setAutoConfig(prev => ({ ...prev, etiquette: { ...prev.etiquette, enabled: !prev.etiquette.enabled } }))}
+                                className={`w-14 h-8 rounded-full transition-colors relative ${autoConfig.etiquette.enabled ? 'bg-[#2F3A32]' : 'bg-slate-200'}`}
+                            >
+                                <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all shadow-sm ${autoConfig.etiquette.enabled ? 'left-7' : 'left-1'}`}></div>
+                            </button>
+                        </div>
+                    </div >
+
+        {/* Save Button */ }
+        < div className = "pt-8 text-right" >
+            <button onClick={() => saveSettings(autoConfig)} className="px-8 py-4 bg-[#2F3A32] text-white rounded-2xl font-bold shadow-lg hover:bg-[#1A3C34] transition-all">설정 저장 (Save Config)</button>
+                    </div >
+                </div >
+            )
+}
+
+{
+    activeTab === 'HISTORY' && (
+        <div className="bg-white p-8 rounded-[32px] border border-slate-100">
+            <table className="w-full text-left">
+                <thead className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                    <tr>
+                        <th className="pb-4">발송 일시</th>
+                        <th className="pb-4">채널</th>
+                        <th className="pb-4">제목</th>
+                        <th className="pb-4 text-right">수신자 수</th>
+                    </tr>
+                </thead>
+                <tbody className="text-sm font-medium text-slate-600">
+                    <tr>
+                        <td colSpan={4} className="py-20 text-center text-slate-300 italic">아직 발송된 이력이 없습니다.</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
+    )
+}
+        </div >
     );
 }
