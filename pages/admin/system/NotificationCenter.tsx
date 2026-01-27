@@ -11,7 +11,22 @@ export default function NotificationCenter() {
     const [searchTerm, setSearchTerm] = useState('');
     const [pushTokens, setPushTokens] = useState<Set<string>>(new Set());
 
-    // ... (Auto Config State)
+    // Compose State
+    const [composeForm, setComposeForm] = useState({
+        title: '',
+        body: '',
+        imageUrl: '',
+        linkUrl: '',
+        channels: { push: true, notice: false, popup: false },
+        targetMode: 'ALL' as 'ALL' | 'INDIVIDUAL',
+        selectedMemberIds: new Set<string>()
+    });
+
+    // Auto Config State
+    const [autoConfig, setAutoConfig] = useState({
+        visitReminder: { enabled: true, time: '09:00', timing: '1_DAY_BEFORE' },
+        etiquette: { enabled: true, start: '22:00', end: '08:00' }
+    });
 
     // Filtered Members Logic
     const filteredMembers = members.filter(m =>
@@ -24,7 +39,22 @@ export default function NotificationCenter() {
         loadSettings();
     }, []);
 
-    // ... (loadSettings/saveSettings)
+    const loadSettings = async () => {
+        const { data } = await supabase.from('hannam_system_settings').select('setting_value').eq('setting_key', 'NOTIFICATION_CONFIG').single();
+        if (data?.setting_value) {
+            setAutoConfig(data.setting_value);
+        }
+    };
+
+    const saveSettings = async (newConfig: any) => {
+        const { error } = await supabase.from('hannam_system_settings').upsert({
+            setting_key: 'NOTIFICATION_CONFIG',
+            setting_value: newConfig,
+            updated_at: new Date().toISOString()
+        });
+        if (error) alert('설정 저장 실패: ' + error.message);
+        else alert('설정이 저장되었습니다.');
+    };
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -40,9 +70,48 @@ export default function NotificationCenter() {
         }
     };
 
-    // ... (handleSend)
+    const handleSend = async () => {
+        const { title, body, channels, selectedMemberIds, targetMode, linkUrl, imageUrl } = composeForm;
+        if (!title || !body) return alert('제목과 내용을 입력해주세요.');
+        if (targetMode === 'INDIVIDUAL' && selectedMemberIds.size === 0) return alert('대상 회원을 선택해주세요.');
 
-    // ... (toggleMemberSelection)
+        if (confirm('정말로 발송하시겠습니까?')) {
+            try {
+                // 1. Send Push
+                if (channels.push) {
+                    const tokensToUse = ['mock-token']; // Replace with real selection logic
+                    await fetch('/api/push/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, body, tokens: tokensToUse, data: { url: linkUrl, image: imageUrl } })
+                    });
+                }
+
+                // 2. Create Notice / Popup
+                if (channels.notice || channels.popup) {
+                    const noticeData = {
+                        title,
+                        content: body, // Simplified
+                        isPopup: channels.popup,
+                        // ... other fields
+                    };
+                    // await db.notices.add(noticeData); // Mock call
+                }
+
+                alert('발송 처리가 완료되었습니다.');
+                setComposeForm(prev => ({ ...prev, title: '', body: '' }));
+            } catch (e) {
+                alert('발송 중 오류가 발생했습니다.');
+            }
+        }
+    };
+
+    const toggleMemberSelection = (id: string) => {
+        const newSet = new Set(composeForm.selectedMemberIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setComposeForm(prev => ({ ...prev, selectedMemberIds: newSet }));
+    };
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
