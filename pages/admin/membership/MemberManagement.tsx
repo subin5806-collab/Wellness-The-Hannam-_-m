@@ -27,6 +27,7 @@ export default function MemberManagement() {
   const [allMemberships, setAllMemberships] = useState<Membership[]>([]);
   const [membershipProducts, setMembershipProducts] = useState<MembershipProduct[]>([]);
   const [realBalances, setRealBalances] = useState<Record<string, number>>({});
+  const [pushTokens, setPushTokens] = useState<Set<string>>(new Set());
 
   const [searchTerm, setSearchTerm] = useState('');
   const [expiryFilter, setExpiryFilter] = useState('');
@@ -76,16 +77,18 @@ export default function MemberManagement() {
   const fetchMembers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [allMembers, allMps, allMsProducts, balances] = await Promise.all([
+      const [allMembers, allMps, allMsProducts, balances, pTokens] = await Promise.all([
         db.members.getAll(),
         db.memberships.getAll(),
         db.master.membershipProducts.getAll(),
-        db.memberships.getAllRealBalances()
+        db.memberships.getAllRealBalances(),
+        (db.fcmTokens as any).getAllAdmin()
       ]);
       setMembers(allMembers || []);
       setAllMemberships(allMps || []);
       setMembershipProducts(allMsProducts || []);
       setRealBalances(balances || {});
+      setPushTokens(new Set(pTokens || []));
     } catch (e: any) { alert(e.message); }
     finally { setIsLoading(false); }
   }, []);
@@ -801,7 +804,12 @@ export default function MemberManagement() {
                     />
                   </td>
                   <td className="px-10 py-10">
-                    <div className="font-bold text-[#2F3A32] text-2xl">{m.name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold text-[#2F3A32] text-2xl">{m.name}</div>
+                      {pushTokens.has(m.id) && (
+                        <span className="bg-sky-100 text-sky-600 px-2 py-0.5 rounded-md text-[10px] font-bold border border-sky-200" title="푸시 알림 가능">🔔 APP</span>
+                      )}
+                    </div>
                     <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">HANNAM ID: {m.id.slice(0, 8)}</p>
                   </td>
                   <td className="px-10 py-10 text-[18px] text-slate-500 font-bold tabular-nums">

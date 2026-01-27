@@ -11,6 +11,7 @@ import CareSessionPage from './pages/admin/care/CareSessionPage';
 import MasterSettings from './pages/admin/system/MasterSettings';
 import CareRecordManagement from './pages/admin/care/CareRecordManagement';
 import CareHistorySplitPage from './pages/admin/care/CareHistorySplitPage';
+import NotificationCenter from './pages/admin/system/NotificationCenter';
 
 import { FcmService } from './src/firebase';
 
@@ -72,6 +73,7 @@ const App: React.FC = () => {
                   <Route path="members/:memberId/care-history" element={<CareHistorySplitPage />} />
                   <Route path="records" element={<CareRecordManagement />} />
                   <Route path="notices" element={<NoticeManagement />} />
+                  <Route path="notification-center" element={<NotificationCenter />} />
                   <Route path="care/:memberId" element={<CareSessionPage />} />
                   <Route path="settings" element={<MasterSettings />} />
                   <Route path="*" element={<Navigate to="/admin" />} />

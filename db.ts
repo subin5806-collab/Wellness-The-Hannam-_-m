@@ -1095,6 +1095,11 @@ export const db = {
     getByMemberId: async (memberId: string) => {
       const { data } = await supabase.from('hannam_fcm_tokens').select('token').eq('member_id', memberId);
       return data?.map(r => r.token) || [];
+    },
+    getAllAdmin: async () => {
+      const { data } = await supabase.from('hannam_fcm_tokens').select('member_id');
+      const uniqueIds = new Set(data?.map(r => r.member_id) || []);
+      return Array.from(uniqueIds);
     }
   },
   adminNotes: {

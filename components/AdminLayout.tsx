@@ -17,6 +17,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
     { path: '/admin/members', label: '회원 통합 관리' }, // Points to MemberManagement
     { path: '/admin/records', label: '이용 내역 관리' }, // Points to CareRecordManagement
     { path: '/admin/notices', label: '공지/알림' },      // Points to NoticeManagement
+    { path: '/admin/notification-center', label: '알림 센터 (Push)' }, // Points to NotificationCenter
     { path: '/admin/settings', label: '시스템 설정' },   // Points to MasterSettings
   ];
 
