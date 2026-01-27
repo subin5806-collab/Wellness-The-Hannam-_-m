@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../../../db';
+import { db, supabase } from '../../../db';
 import { Member } from '../../../types';
 import { FcmService } from '../../../src/firebase';
 
@@ -274,6 +274,15 @@ export default function NotificationCenter() {
             )}
 
             {activeTab === 'AUTO' && (
+                <div className="bg-white p-12 rounded-[40px] border border-slate-100 space-y-12">
+                    {/* Visit Reminder */}
+                    <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                            <h4 className="text-xl font-bold text-[#2F3A32]">📅 예약 방문 자동 알림</h4>
+                            <p className="text-sm text-slate-400">예약일 하루 전, 자동으로 방문 리마인드 푸시를 발송합니다.</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <select
                                 className="px-4 py-2 bg-slate-50 rounded-xl text-sm font-bold text-[#2F3A32] border border-slate-200 outline-none"
                                 value={autoConfig.visitReminder.timing}
                                 onChange={e => setAutoConfig(prev => ({ ...prev, visitReminder: { ...prev.visitReminder, timing: e.target.value } }))}
@@ -287,11 +296,11 @@ export default function NotificationCenter() {
                             >
                                 <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all shadow-sm ${autoConfig.visitReminder.enabled ? 'left-7' : 'left-1'}`}></div>
                             </button>
-                        </div >
-                    </div >
+                        </div>
+                    </div>
 
-        {/* Etiquette Mode */ }
-        < div className = "flex items-start justify-between pt-8 border-t border-slate-50" >
+                    {/* Etiquette Mode */}
+                    <div className="flex items-start justify-between pt-8 border-t border-slate-50">
                         <div className="space-y-1">
                             <h4 className="text-xl font-bold text-[#2F3A32]">🌙 에티켓 모드 (야간 발송 제한)</h4>
                             <p className="text-sm text-slate-400">설정된 시간대에는 자동 알림 발송을 제한합니다.</p>
@@ -309,37 +318,34 @@ export default function NotificationCenter() {
                                 <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all shadow-sm ${autoConfig.etiquette.enabled ? 'left-7' : 'left-1'}`}></div>
                             </button>
                         </div>
-                    </div >
+                    </div>
 
-        {/* Save Button */ }
-        < div className = "pt-8 text-right" >
-            <button onClick={() => saveSettings(autoConfig)} className="px-8 py-4 bg-[#2F3A32] text-white rounded-2xl font-bold shadow-lg hover:bg-[#1A3C34] transition-all">설정 저장 (Save Config)</button>
-                    </div >
-                </div >
-            )
-}
+                    {/* Save Button */}
+                    <div className="pt-8 text-right">
+                        <button onClick={() => saveSettings(autoConfig)} className="px-8 py-4 bg-[#2F3A32] text-white rounded-2xl font-bold shadow-lg hover:bg-[#1A3C34] transition-all">설정 저장 (Save Config)</button>
+                    </div>
+                </div>
+            )}
 
-{
-    activeTab === 'HISTORY' && (
-        <div className="bg-white p-8 rounded-[32px] border border-slate-100">
-            <table className="w-full text-left">
-                <thead className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                    <tr>
-                        <th className="pb-4">발송 일시</th>
-                        <th className="pb-4">채널</th>
-                        <th className="pb-4">제목</th>
-                        <th className="pb-4 text-right">수신자 수</th>
-                    </tr>
-                </thead>
-                <tbody className="text-sm font-medium text-slate-600">
-                    <tr>
-                        <td colSpan={4} className="py-20 text-center text-slate-300 italic">아직 발송된 이력이 없습니다.</td>
-                    </tr>
-                </tbody>
-            </table>
+            {activeTab === 'HISTORY' && (
+                <div className="bg-white p-8 rounded-[32px] border border-slate-100">
+                    <table className="w-full text-left">
+                        <thead className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                            <tr>
+                                <th className="pb-4">발송 일시</th>
+                                <th className="pb-4">채널</th>
+                                <th className="pb-4">제목</th>
+                                <th className="pb-4 text-right">수신자 수</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm font-medium text-slate-600">
+                            <tr>
+                                <td colSpan={4} className="py-20 text-center text-slate-300 italic">아직 발송된 이력이 없습니다.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
-    )
-}
-        </div >
     );
 }
