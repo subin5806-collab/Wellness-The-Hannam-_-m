@@ -77,7 +77,7 @@ export default function PWAInstallBanner() {
                         <div className="flex flex-col">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Official App</span>
                             <span className="text-sm font-bold text-[#2F3A32]">
-                                {isKakao ? "사파리/크롬에서 열어주세요" : "웰니스 더 한남 전용 앱 설치"}
+                                {isKakao ? "사파리/크롬에서 열어주세요" : "웰니스 더 한남 멤버십"}
                             </span>
                             <span className="text-[9px] text-slate-400">(Wellness,The Hannam)</span>
                         </div>

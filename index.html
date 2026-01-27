@@ -84,44 +84,57 @@
     <div id="root"></div>
     <script type="module" src="index.tsx"></script>
     <script>
-        // [CRITICAL FIX] Aggressive "Kill Switch" for Stale Service Workers & Caches
-        // Version: 2026.01.27.v6 (Burst Mode)
+        // [CRITICAL FIX] Service Worker Management & Kakao Compatibility
+        // Version: 2026.01.27.v7 (Kakao Exclusion)
         (async function () {
-            const RESET_KEY = 'wellness_reset_v20260127_final_v6';
+            const ua = navigator.userAgent;
+            const isKakao = /KAKAOTALK/i.test(ua);
+
+            // 1. KAKAOTALK SPECIFIC FIX: KILL ALL SWs & EXIT
+            // Kakao in-app browser hates Service Workers -> White Screen.
+            if (isKakao) {
+                console.warn('[System] KakaoTalk detected. Disabling Service Workers.');
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (const registration of registrations) {
+                        try {
+                            await registration.unregister();
+                            console.log('[System] Unregistered SW for Kakao:', registration.scope);
+                        } catch (e) { console.error(e); }
+                    }
+                }
+                // Do NOT register anything. Just exit.
+                return;
+            }
+
+            // 2. GENERAL "KILL SWITCH" for Stale Cache (Non-Kakao)
+            // Only runs once to fix white screen issues on other browsers.
+            const RESET_KEY = 'wellness_reset_v20260127_final_v7'; // Bump version
             const hasReset = localStorage.getItem(RESET_KEY);
 
             if (!hasReset) {
-                console.warn('[System] Executing Critical Cache & SW Cleanup (v6)...');
-
+                console.warn('[System] Executing Critical Cache & SW Cleanup (v7)...');
                 try {
-                    // 1. Unregister ALL Service Workers
+                    // Unregister all first to be safe
                     if ('serviceWorker' in navigator) {
                         const registrations = await navigator.serviceWorker.getRegistrations();
                         for (const registration of registrations) {
                             await registration.unregister();
-                            console.log('[System] Unregistered SW:', registration.scope);
                         }
                     }
-
-                    // 2. Clear ALL Cache Storage
+                    // Clear Cache
                     if ('caches' in window) {
                         const keys = await caches.keys();
                         await Promise.all(keys.map(key => caches.delete(key)));
-                        console.log('[System] All Caches Wiped.');
                     }
-
-                    // 3. Reload with Cache Buster
+                    // Reload
                     localStorage.setItem(RESET_KEY, 'true');
-                    console.log('[System] Force Reloading...');
-
-                    // Force a network reload by slightly changing the URL
-                    window.location.href = window.location.pathname + '?t=' + Date.now();
-
+                    window.location.href = '/?t=' + Date.now();
                 } catch (e) {
                     console.error('[System] Cleanup Failed:', e);
                 }
             } else {
-                console.log('[System] Service Worker & Cache status: Clean (v6 verified)');
+                console.log('[System] Service Worker & Cache status: Clean (v7 verified)');
             }
         })();
     </script>
