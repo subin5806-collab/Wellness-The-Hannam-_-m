@@ -20,6 +20,12 @@ export const FcmService = {
     // 1. Request Permission & Get Token
     requestPermission: async (memberId: string) => {
         try {
+            // [Kakao Fix] Disable FCM on Kakao In-App Browser to prevent White Screen
+            if (/KAKAOTALK|DaumApps/i.test(navigator.userAgent)) {
+                console.warn("[System] KakaoTalk detected. Skipping FCM registration.");
+                return;
+            }
+
             const permission = await Notification.requestPermission();
             if (permission === "granted") {
                 console.log("Notification permission granted.");
