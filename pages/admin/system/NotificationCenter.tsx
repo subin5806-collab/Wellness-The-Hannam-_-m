@@ -161,6 +161,31 @@ export default function NotificationCenter() {
                         console.warn("No FCM tokens found for selected targets.");
                         // Proceed anyway as Notice/Popup might have been created.
                     } else {
+                        // [PERSISTENCE] Save to 'hannam_notifications' for Personal Alarm Center
+                        // Logic: Identify target Member IDs
+                        let targetIds: string[] = [];
+                        if (targetMode === 'ALL') {
+                            const { data: allMembers } = await supabase.from('hannam_members').select('id');
+                            targetIds = allMembers?.map(m => m.id) || [];
+                        } else {
+                            targetIds = Array.from(selectedMemberIds);
+                        }
+
+                        // Bulk Insert to Notifications Table
+                        if (targetIds.length > 0) {
+                            const notiRows = targetIds.map(mid => ({
+                                id: `NOTI-${Date.now()}-${mid.slice(-4)}`, // Unique ID
+                                member_id: mid,
+                                type: 'PUSH', // [FIX] Store Type
+                                title,
+                                content: body,
+                                is_read: false,
+                                created_at: new Date().toISOString()
+                            }));
+
+                            await supabase.from('hannam_notifications').insert(notiRows);
+                        }
+
                         await fetch('/api/push/send', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },

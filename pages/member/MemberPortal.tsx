@@ -245,7 +245,15 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                   <div className="grid grid-cols-2 gap-x-4 gap-y-6">
                     <div className="space-y-1">
                       <p className="flex items-center gap-1.5 text-[8px] text-slate-300 font-bold uppercase tracking-[0.1em]">Membership</p>
-                      <p className="text-[13px] font-bold text-[#1A1A1A] truncate">{activeMs?.productName || 'No Ms'}</p>
+                      <div className="flex flex-col">
+                        <p className="text-[13px] font-bold text-[#1A1A1A] truncate">{activeMs?.productName || 'No Ms'}</p>
+                        {activeMs && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded uppercase tracking-tight">{(activeProduct?.defaultDiscountRate || 0)}% DC</span>
+                            <span className="text-[9px] text-slate-400 font-medium tracking-tight">등록: {activeMs.startDate?.replace(/-/g, '.')}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-1 text-right">
                       <p className="flex items-center gap-1.5 justify-end text-[8px] text-slate-300 font-bold uppercase tracking-[0.1em]">Joined</p>
@@ -458,19 +466,22 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
               </div>
               <div className="space-y-6">
                 {history.map(record => (
-                  <div key={record.id} className="bg-white rounded-[40px] p-8 border border-[#E8E8E4] luxury-shadow flex justify-between items-center">
-                    <div className="flex gap-6 items-center">
-                      <div className="text-center min-w-[70px]">
-                        <p className="text-[11px] text-[#A58E6F] font-bold tabular-nums uppercase">{record.date.slice(5)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <h5 className="text-[15px] font-bold text-[#1A3C34]">{programs.find(p => p.id === record.programId)?.name || 'Wellness Care'}</h5>
-                        <p className="text-[8px] text-slate-300 font-bold uppercase tracking-widest">Care Verified</p>
-                      </div>
+                  <div key={record.id} className="bg-white rounded-[24px] px-6 py-5 border border-[#E8E8E4] luxury-shadow flex justify-between items-center gap-4">
+                    {/* Date (Left, Bold) */}
+                    <div className="text-left shrink-0 w-14">
+                      <p className="text-[15px] text-[#1A3C34] font-black tabular-nums leading-none tracking-tight">{record.date.slice(5)}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[18px] font-bold text-rose-400 tabular-nums">-₩{Math.floor(record.finalPrice).toLocaleString()}</p>
-                      <p className="text-[9px] font-bold text-emerald-600/50 tabular-nums uppercase tracking-widest">잔액: ₩{Math.floor(record.balanceAfter || 0).toLocaleString()}</p>
+
+                    {/* Program Name */}
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-[14px] font-bold text-[#1A3C34] truncate">{programs.find(p => p.id === record.programId)?.name || 'Wellness Care'}</h5>
+                      <p className="text-[8px] text-slate-300 font-bold uppercase tracking-widest mt-0.5">Care Verified</p>
+                    </div>
+
+                    {/* Price & Balance */}
+                    <div className="text-right shrink-0">
+                      <p className="text-[15px] font-bold text-rose-400 tabular-nums leading-none mb-1">-₩{Math.floor(record.finalPrice).toLocaleString()}</p>
+                      <p className="text-[9px] font-bold text-emerald-600/50 tabular-nums uppercase tracking-widest bg-emerald-50/50 px-1.5 py-0.5 rounded-full inline-block">잔액: ₩{Math.floor(record.balanceAfter || 0).toLocaleString()}</p>
                     </div>
                   </div>
                 ))}
@@ -507,14 +518,24 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
               <div className="relative border-l border-slate-200 ml-6 space-y-12 py-4">
                 {history.map(record => (
                   <div key={record.id} className="relative pl-8" onClick={() => setSelectedRecord(record)}>
-                    <div className="absolute -left-1.5 top-2 w-3 h-3 rounded-full bg-[#A58E6F] ring-4 ring-[#F9F9F7]"></div>
-                    <div className="bg-white p-6 rounded-[28px] border border-slate-100 shadow-sm hover:border-[#1A3C34] transition-all cursor-pointer group">
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{record.date}</span>
-                        <span className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest">{programs.find(p => p.id === record.programId)?.category || 'CARE'}</span>
+                    <div className="absolute -left-1.5 top-4 w-3 h-3 rounded-full bg-[#A58E6F] ring-4 ring-[#F9F9F7]"></div>
+                    <div className="bg-white px-6 py-5 rounded-[24px] border border-slate-100 shadow-sm hover:border-[#1A3C34] transition-all cursor-pointer group flex justify-between items-center gap-4">
+
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{record.date}</span>
+                          <span className="w-0.5 h-2 bg-slate-200"></span>
+                          <span className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest">{programs.find(p => p.id === record.programId)?.category || 'CARE'}</span>
+                        </div>
+                        <h4 className="text-[15px] font-bold text-[#1A3C34] group-hover:text-[#A58E6F] transition-colors">{programs.find(p => p.id === record.programId)?.name || 'Wellness Care'}</h4>
+                        <p className="text-[12px] text-slate-500 line-clamp-1 leading-relaxed">"{record.noteSummary}"</p>
                       </div>
-                      <h4 className="text-xl font-bold text-[#1A3C34] mb-2 group-hover:text-[#A58E6F] transition-colors">{programs.find(p => p.id === record.programId)?.name || 'Wellness Care'}</h4>
-                      <p className="text-[13px] text-slate-500 line-clamp-2 leading-relaxed">"{record.noteSummary}"</p>
+
+                      {/* CTA */}
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] font-bold text-[#1A3C34] border-b border-[#1A3C34] pb-0.5 group-hover:text-[#A58E6F] group-hover:border-[#A58E6F] transition-colors">View Detail &gt;</span>
+                      </div>
+
                     </div>
                   </div>
                 ))}

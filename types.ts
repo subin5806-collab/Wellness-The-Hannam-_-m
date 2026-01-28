@@ -86,6 +86,7 @@ export interface Membership {
   defaultDiscountRate?: number; // 추가: 기본 할인율
   status: 'active' | 'expired';
   expiryDate?: string;
+  startDate?: string; // 추가: 시작일 (UI 표시용)
   createdAt: string;
 }
 
