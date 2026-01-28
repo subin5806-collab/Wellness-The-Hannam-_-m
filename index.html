@@ -105,87 +105,63 @@
         </div>
     </div>
     <script type="module" src="index.tsx"></script>
+    </script>
     <script>
         // [CRITICAL FIX] Service Worker Management & Kakao Compatibility
-        // Version: 2026.01.27.v8 (Kakao Exclusion + HTML Fallback)
-        (async function () {
+        // Version: 2026.01.28.v9 (HEAD Injection + Mock Object)
+        (function () {
             const ua = navigator.userAgent;
             const isKakao = /KAKAOTALK|DaumApps/i.test(ua);
 
-            // 1. KAKAOTALK/NATIVE APP SPECIFIC FIX: KILL SWs & DISABLE
-            // Kakao in-app browser hates Service Workers -> White Screen.
+            // 1. KAKAOTALK/NATIVE APP SPECIFIC FIX
             if (isKakao) {
-                console.warn('[System] Native App (Kakao) detected. Disabling Service Workers.');
+                console.warn('[System] Native App (Kakao) detected. PREVENTING Service Workers.');
 
-                // Unregister existing workers immediately
-                if ('serviceWorker' in navigator) {
-                    try {
-                        const registrations = await navigator.serviceWorker.getRegistrations();
-                        for (const registration of registrations) {
-                            await registration.unregister();
-                            console.log('Kakao SW Unregistered');
-                        }
-                    } catch (e) {
-                        console.error('SW Unregister Failed', e);
-                    }
-                }
+                // Mock the API to prevent crashes while disabling functionality
+                const dummySW = {
+                    register: function () {
+                        console.log('[System] SW registration blocked (Kakao)');
+                        return new Promise(() => { }); // Never resolve/reject matches "hanging" but better than crash? Or just resolve null.
+                        // User wants 100% disable.
+                        return Promise.resolve(null);
+                    },
+                    getRegistrations: function () { return Promise.resolve([]); },
+                    ready: new Promise(() => { }) // Never ready
+                };
 
-                // NUCLEAR OPTION: Delete the API entirely so React/Firebase CANNOT register anything
-                // This prevents the "hanging" during registration
                 try {
+                    // Try to unregister real ones if they exist
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                        navigator.serviceWorker.getRegistrations().then(regs => {
+                            regs.forEach(r => r.unregister());
+                        });
+                    }
+
+                    // OVERRIDE the API
                     Object.defineProperty(navigator, 'serviceWorker', {
-                        value: undefined,
+                        value: dummySW,
                         writable: false,
                         configurable: false
                     });
-                    console.log('[System] navigator.serviceWorker has been NULLIFIED');
+                    console.log('[System] navigator.serviceWorker Replaced with Mock');
+
                 } catch (e) {
-                    console.error('Failed to nullify SW API', e);
+                    console.error('[System] Failed to mock SW', e);
                 }
-
-                // Force clear cache once for Kakao users to fix white screen
-                const KAKAO_RESET = 'kakao_reset_v3';
-                if (!localStorage.getItem(KAKAO_RESET) && 'caches' in window) {
-                    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
-                        .then(() => {
-                            localStorage.setItem(KAKAO_RESET, 'true');
-                            // Force Timestamp Reload to bypass Kakao Cache
-                            window.location.href = '/?t=' + Date.now();
-                        });
-                }
-
-                // IMPORTANT: Stop execution of any SW logic here.
                 return;
             }
 
-            // 2. GENERAL "KILL SWITCH" for Stale Cache (Non-Kakao)
-            // Only runs once to fix white screen issues on other browsers.
-            const RESET_KEY = 'wellness_reset_v20260127_final_v8'; // Bump version
-            const hasReset = localStorage.getItem(RESET_KEY);
-
-            if (!hasReset) {
-                console.warn('[System] Executing Critical Cache & SW Cleanup (v8)...');
-                try {
-                    // Unregister all first to be safe
-                    if ('serviceWorker' in navigator) {
-                        const registrations = await navigator.serviceWorker.getRegistrations();
-                        for (const registration of registrations) {
-                            await registration.unregister();
-                        }
-                    }
-                    // Clear Cache
-                    if ('caches' in window) {
-                        const keys = await caches.keys();
-                        await Promise.all(keys.map(key => caches.delete(key)));
-                    }
-                    // Reload
-                    localStorage.setItem(RESET_KEY, 'true');
-                    window.location.href = '/?t=' + Date.now();
-                } catch (e) {
-                    console.error('[System] Cleanup Failed:', e);
+            // 2. GENERAL CLEANUP (Non-Kakao)
+            const RESET_KEY = 'wellness_reset_v9';
+            if (!localStorage.getItem(RESET_KEY)) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
                 }
-            } else {
-                console.log('[System] Service Worker & Cache status: Clean (v8 verified)');
+                if ('caches' in window) {
+                    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+                }
+                localStorage.setItem(RESET_KEY, 'true');
+                console.log('[System] Cache Reset Complete (v9)');
             }
         })();
     </script>

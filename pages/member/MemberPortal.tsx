@@ -179,7 +179,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
         <header className="px-8 pt-16 pb-6 flex justify-between items-center bg-[#F9F9F7] sticky top-0 z-40">
           <div>
             <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.35em] mb-1.5">Wellness The Hannam</p>
-            <h1 className="text-3xl font-serif-luxury font-bold text-[#1A3C34]">{member.name}님</h1>
+            <h1 className="text-[26px] font-serif-luxury font-bold text-[#1A3C34]">{member.name}님</h1>
           </div>
           <button
             onClick={() => setView('notifications')}
@@ -190,118 +190,97 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto no-scrollbar px-6 space-y-10">
+        <main className="flex-1 overflow-y-auto no-scrollbar px-5 space-y-6 pb-20">
           {view === 'dashboard' && (
-            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
               {/* Header */}
-              <div className="text-center pt-8 pb-6 px-10">
-                <p className="text-[10px] text-slate-400 font-light uppercase tracking-[0.4em] mb-2">The Wellness Atelier</p>
-                <div className="w-8 h-[1px] bg-slate-200 mx-auto mb-4"></div>
-                <h1 className="text-lg font-serif-luxury font-extralight text-[#1A1A1A] tracking-[0.1em] leading-tight">MEMBER DASHBOARD</h1>
+              <div className="text-center pt-4 pb-2 px-10">
+                <p className="text-[9px] text-slate-400 font-light uppercase tracking-[0.4em] mb-2">The Wellness Atelier</p>
+                <div className="w-6 h-[1px] bg-slate-200 mx-auto mb-3"></div>
+                <h1 className="text-[15px] font-serif-luxury font-extralight text-[#1A1A1A] tracking-[0.1em] leading-tight">MEMBER DASHBOARD</h1>
               </div>
 
               {/* [NEW] Pending Signature Alert */}
               {pendingSignatures.length > 0 && (
-                <div className="mx-6 animate-in slide-in-from-top-4 duration-700 delay-100">
+                <div className="mx-2 animate-in slide-in-from-top-4 duration-700 delay-100">
                   <button
                     onClick={() => setSigningRecordId(pendingSignatures[0].id)}
-                    className="w-full bg-[#1A3C34] rounded-[32px] p-6 text-white shadow-xl flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
+                    className="w-full bg-[#1A3C34] rounded-[28px] p-5 text-white shadow-xl flex items-center justify-between group active:scale-[0.98] transition-all relative overflow-hidden"
                   >
                     <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     <div className="flex items-center gap-4 relative z-10">
-                      <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center animate-pulse">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                       </div>
                       <div className="text-left">
-                        <p className="text-[9px] font-bold text-[#A58E6F] uppercase tracking-[0.2em] mb-0.5">Action Required</p>
-                        <h3 className="text-[15px] font-bold leading-none">서명이 필요한 내역이 {pendingSignatures.length}건 있습니다</h3>
+                        <p className="text-[8px] font-bold text-[#A58E6F] uppercase tracking-[0.2em] mb-0.5">Action Required</p>
+                        <h3 className="text-[13px] font-bold leading-none">서명이 필요한 내역이 {pendingSignatures.length}건 있습니다</h3>
                       </div>
-                    </div>
-                    <div className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center relative z-10">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
                     </div>
                   </button>
                 </div>
               )}
 
               {/* Profile Card */}
-              <section className="mx-8 bg-white rounded-[40px] luxury-shadow border border-slate-50 overflow-hidden">
-                <div className="p-9 space-y-8">
+              <section className="mx-2 bg-white rounded-[32px] luxury-shadow border border-slate-50 overflow-hidden">
+                <div className="p-6 space-y-6">
                   <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-5">
-                      <div className="w-16 h-16 bg-[#F9F9F7] rounded-full flex items-center justify-center border border-slate-100 shadow-inner">
-                        <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-[#F9F9F7] rounded-full flex items-center justify-center border border-slate-100 shadow-inner">
+                        <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                       </div>
                       <div>
-                        <div className="flex items-center gap-2.5">
-                          <h3 className="text-[20px] font-bold text-[#1A1A1A]">{member.name}</h3>
-                          <span className="text-[9px] font-bold text-[#A58E6F] uppercase tracking-[0.15em] border border-[#A58E6F]/20 px-2.5 py-0.5 rounded-full">VIP MEMBER</span>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-[18px] font-bold text-[#1A1A1A]">{member.name}</h3>
+                          <span className="text-[8px] font-bold text-[#A58E6F] uppercase tracking-[0.15em] border border-[#A58E6F]/20 px-2 py-0.5 rounded-full">VIP</span>
                         </div>
-                        <p className="text-[12px] text-slate-400 font-medium tabular-nums mt-0.5">{member.phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}</p>
+                        <p className="text-[11px] text-slate-400 font-medium tabular-nums mt-0.5">{member.phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}</p>
                       </div>
                     </div>
                   </div>
 
                   <div className="h-[1px] bg-slate-100/40 w-full"></div>
 
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-8">
-                    <div className="space-y-1.5">
-                      <p className="flex items-center gap-1.5 text-[9px] text-slate-300 font-bold uppercase tracking-[0.1em]">
-                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                        Membership
-                      </p>
-                      <p className="text-[14px] font-bold text-[#1A1A1A]">{activeMs?.productName || 'No Ms'}</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-6">
+                    <div className="space-y-1">
+                      <p className="flex items-center gap-1.5 text-[8px] text-slate-300 font-bold uppercase tracking-[0.1em]">Membership</p>
+                      <p className="text-[13px] font-bold text-[#1A1A1A] truncate">{activeMs?.productName || 'No Ms'}</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <p className="flex items-center gap-1.5 text-[9px] text-slate-300 font-bold uppercase tracking-[0.1em]">
-                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        Joined Date
-                      </p>
-                      <p className="text-[14px] font-bold text-[#1A1A1A] tabular-nums">{member.createdAt?.split('T')[0].replace(/-/g, '. ')}</p>
+                    <div className="space-y-1 text-right">
+                      <p className="flex items-center gap-1.5 justify-end text-[8px] text-slate-300 font-bold uppercase tracking-[0.1em]">Joined</p>
+                      <p className="text-[13px] font-bold text-[#1A1A1A] tabular-nums">{member.createdAt?.split('T')[0].replace(/-/g, '. ')}</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <p className="flex items-center gap-1.5 text-[9px] text-slate-300 font-bold uppercase tracking-[0.1em]">
-                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Benefits
-                      </p>
-                      <p className="text-[14px] font-bold text-[#1A1A1A]">{currentDiscountRate}% OFF</p>
-                    </div>
-
                   </div>
                 </div>
               </section>
 
               {/* Remaining Balance Card */}
-              {/* Remaining Balance Card - Slim Dark Theme */}
-              <section className="mx-6 bg-[#1A3C34] rounded-[32px] p-8 text-white relative overflow-hidden shadow-xl text-center">
-                <div className="relative z-10 space-y-2">
-                  <p className="text-[9px] font-bold text-[#A58E6F] uppercase tracking-[0.2em] opacity-90">Available Balance</p>
-                  <h2 className="text-3xl font-black tabular-nums tracking-tight">
+              <section className="mx-2 bg-[#1A3C34] rounded-[28px] p-6 text-white relative overflow-hidden shadow-xl text-center">
+                <div className="relative z-10 space-y-1">
+                  <p className="text-[8px] font-bold text-[#A58E6F] uppercase tracking-[0.2em] opacity-90">Available Balance</p>
+                  <h2 className="text-2xl font-black tabular-nums tracking-tight">
                     ₩ {Math.floor(totalRemaining).toLocaleString()}
                   </h2>
                 </div>
               </section>
 
               {/* Upcoming Reservations */}
-              <section className="space-y-6 pt-2">
-                <div className="flex justify-between items-center px-10 text-slate-400">
-                  <h4 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em]">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                    Upcoming Sessions
-                  </h4>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300">Next 30 Days</span>
+              <section className="space-y-4 pt-2">
+                <div className="flex justify-between items-center px-4 text-slate-400">
+                  <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em]">Upcoming</h4>
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-slate-300">Next 30 Days</span>
                 </div>
-                <div className="space-y-3 px-6">
+                <div className="space-y-2.5 px-2">
                   {upcomingReservations.map(res => (
-                    <div key={res.id} className="bg-white rounded-[24px] p-5 border border-slate-50 shadow-sm flex items-center justify-between">
-                      <div className="flex items-center gap-5">
-                        <div className="w-12 h-12 bg-[#F9F9F7] rounded-xl flex flex-col items-center justify-center border border-slate-100 shrink-0">
+                    <div key={res.id} className="bg-white rounded-[20px] p-4 border border-slate-50 shadow-sm flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-[#F9F9F7] rounded-lg flex flex-col items-center justify-center border border-slate-100 shrink-0">
                           <span className="text-[8px] text-slate-400 font-bold uppercase tabular-nums">{res.date.split('-')[1]}월</span>
-                          <span className="text-lg font-black text-[#1A1A1A] tabular-nums leading-none">{res.date.split('-')[2]}</span>
+                          <span className="text-[13px] font-black text-[#1A1A1A] tabular-nums leading-none">{res.date.split('-')[2]}</span>
                         </div>
                         <div className="space-y-0.5">
-                          <p className="text-[13px] font-bold text-[#1A1A1A]">{programs.find(p => p.id === res.programId)?.name || 'Wellness Care'}</p>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                          <p className="text-[12px] font-bold text-[#1A1A1A]">{programs.find(p => p.id === res.programId)?.name || 'Wellness Care'}</p>
+                          <div className="flex items-center gap-2 text-[9px] text-slate-400 font-medium">
                             <span className="tabular-nums">{res.time}</span>
                             <span className="w-0.5 h-0.5 bg-slate-300 rounded-full"></span>
                             <span className="italic">Reserved</span>
@@ -313,44 +292,32 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                 </div>
               </section>
 
-              {/* Experience History */}
-              <section className="space-y-6 pt-2">
-                <div className="flex justify-between items-center px-10 text-slate-400">
-                  <h4 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em]">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Experience History
-                  </h4>
+              {/* Experience History (Compact) */}
+              <section className="space-y-4 pt-2">
+                <div className="flex justify-between items-center px-4 text-slate-400">
+                  <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em]">History</h4>
                 </div>
-                <div className="mx-6 space-y-3">
+                <div className="mx-2 space-y-2.5">
                   {history.slice(0, 10).map(record => {
-                    const timeStr = record.createdAt ? new Date(record.createdAt).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : '';
                     const programName = programs.find(p => p.id === record.programId)?.name || 'Wellness Care';
                     return (
-                      <div key={record.id} onClick={() => setSelectedRecord(record)} className="bg-white rounded-[24px] px-6 py-5 border border-slate-50 shadow-sm flex items-center justify-between active:scale-[0.98] transition-transform cursor-pointer">
-                        {/* Left: Date & Time */}
-                        <div className="flex flex-col gap-0.5 min-w-[70px]">
-                          <span className="text-[11px] font-bold text-[#A58E6F] tabular-nums tracking-wide">{record.date.replace(/-/g, '.')}</span>
-                          <span className="text-[10px] font-medium text-slate-300 tabular-nums">{timeStr}</span>
-                        </div>
-
-                        {/* Center: Program Name */}
-                        <div className="flex-1 px-4 text-center">
-                          <h5 className="text-[13px] font-bold text-[#1A1A1A] truncate leading-tight">
-                            {programName}
-                          </h5>
+                      <div key={record.id} onClick={() => setSelectedRecord(record)} className="bg-white rounded-[20px] px-5 py-4 border border-slate-50 shadow-sm flex items-center justify-between active:scale-[0.98] transition-transform cursor-pointer">
+                        {/* Left: Date & Program Name */}
+                        <div className="flex flex-col gap-1 overflow-hidden mr-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-[#A58E6F] tabular-nums tracking-wide shrink-0">{record.date.slice(5).replace(/-/g, '/')}</span>
+                            <span className="text-[9px] text-slate-200">|</span>
+                            <span className="text-[13px] font-bold text-[#1A1A1A] truncate whitespace-nowrap">{programName}</span>
+                          </div>
                         </div>
 
                         {/* Right: Price & Signature */}
-                        <div className="flex items-center gap-3 text-right min-w-[80px] justify-end">
+                        <div className="flex flex-col items-end gap-1 shrink-0 min-w-[60px]">
                           <span className="text-[13px] font-bold text-rose-400 tabular-nums tracking-tight">
                             -{Math.floor(record.finalPrice).toLocaleString()}
                           </span>
-                          <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${record.signatureData ? 'bg-[#1A3C34] border-[#1A3C34]' : 'bg-slate-50 border-slate-100'}`}>
-                            {record.signatureData ? (
-                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                            ) : (
-                              <span className="w-0.5 h-0.5 bg-slate-200 rounded-full"></span>
-                            )}
+                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${record.signatureData ? 'bg-[#1A3C34] border-[#1A3C34]' : 'bg-slate-50 border-slate-100'}`}>
+                            {record.signatureData && <svg className="w-2 h-2 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>}
                           </div>
                         </div>
                       </div>
