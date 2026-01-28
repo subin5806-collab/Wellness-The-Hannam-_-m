@@ -57,10 +57,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
             data: data || {}, // Data payload
             tokens: tokens,   // Target tokens
+            
+            // [Android Config]
+            android: {
+                priority: 'high',
+                notification: {
+                    sound: 'default',
+                    priority: 'high', // Android notification priority
+                    channelId: 'default' // Required for Android 8+ (Oreo)
+                }
+            },
+            
+            // [iOS/APNs Config]
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default',
+                        'content-available': 1, // Background update
+                        alert: {
+                            title: title,
+                            body: body
+                        }
+                    }
+                },
+                headers: {
+                    'apns-priority': '10', // High priority
+                }
+            },
+
+            // [Web Push Config]
             webpush: {
+                headers: {
+                    Urgency: 'high'
+                },
                 notification: {
                     icon: '/pwa-icon.png',
-                    click_action: '/'
+                    click_action: '/',
+                    requireInteraction: true 
                 }
             }
         };
