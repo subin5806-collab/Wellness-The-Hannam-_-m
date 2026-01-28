@@ -81,8 +81,12 @@ export default function NotificationCenter() {
 
         setIsUploading(true);
         try {
-            // Assume 'public' bucket exists or similar public bucket
-            const url = await db.system.uploadFile('notifications', `notifications/${Date.now()}_${file.name}`, file);
+            // [Sanitization] Force English/Numeric Filename
+            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+            const cleanFileName = `notice_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+
+            // Upload to 'uploads' folder in 'notifications' bucket
+            const url = await db.system.uploadFile('notifications', `uploads/${cleanFileName}`, file);
             if (url) {
                 setComposeForm(prev => ({ ...prev, imageUrl: url }));
             }
