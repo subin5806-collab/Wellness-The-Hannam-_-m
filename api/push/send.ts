@@ -1,8 +1,9 @@
+```typescript
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import fetch from 'node-fetch'; // Vercel environment usually has fetch global or node-fetch
+import admin from 'firebase-admin';
 
-// [REAL IMPLEMENTATION] Uses Legacy HTTP Protocol
-// Requires FCM_SERVER_KEY in environment variables.
+// [REAL IMPLEMENTATION] Uses firebase-admin SDK for robust Push Notifications
+// Requires environment variables: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -14,48 +15,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Missing title, body, or tokens' });
     }
 
-    const SERVER_KEY = process.env.FCM_SERVER_KEY;
-    if (!SERVER_KEY) {
-        console.error('[Critical] FCM_SERVER_KEY is missing in environment variables.');
-        return res.status(500).json({
-            error: 'Server Configuration Error: FCM_SERVER_KEY missing.',
-            solution: 'Please add FCM_SERVER_KEY to Vercel/System Env.'
-        });
+    // Initialize Firebase Admin if not already initialized
+    if (!admin.apps.length) {
+        const projectId = process.env.FIREBASE_PROJECT_ID;
+        const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+        // Handle escaped newlines in private key (common issue in Vercel Env)
+        const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+        if (!projectId || !clientEmail || !privateKey) {
+            console.error('[Critical] Missing Firebase Admin Credentials');
+            return res.status(500).json({ 
+                error: 'Server Configuration Error: Missing Firebase Credentials.', 
+                solution: 'Please check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY in Vercel Env.' 
+            });
+        }
+
+        try {
+            admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId,
+                    clientEmail,
+                    privateKey
+                })
+            });
+            console.log('[System] Firebase Admin Initialized successfully.');
+        } catch (initError: any) {
+            console.error('[System] Firebase Admin Init Failed:', initError);
+            return res.status(500).json({ error: 'Firebase Admin Init Failed: ' + initError.message });
+        }
     }
 
     try {
-        console.log(`[Push] Sending to ${tokens.length} devices...`);
+        console.log(`[Push] Sending to ${ tokens.length } devices...`);
 
-        const response = await fetch('https://fcm.googleapis.com/fcm/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `key=${SERVER_KEY}`
+        // Use Multicast for multiple tokens
+        // Note: 'tokens' array can contain up to 500 tokens per call.
+        const message = {
+            notification: {
+                title: title,
+                body: body,
             },
-            body: JSON.stringify({
-                registration_ids: tokens,
+            data: data || {}, // Data payload
+            tokens: tokens,   // Target tokens
+            webpush: {
                 notification: {
-                    title: title,
-                    body: body,
                     icon: '/pwa-icon.png',
                     click_action: '/'
-                },
-                data: data || {}
-            })
-        });
+                }
+            }
+        };
 
-        const result: any = await response.json();
-        console.log('[FCM Response]', JSON.stringify(result));
+        const response = await admin.messaging().sendEachForMulticast(message as any);
+        
+        console.log('[FCM Response] Success:', response.successCount, 'Failure:', response.failureCount);
 
-        if (result.failure > 0) {
-            console.warn(`[Push] Partial failure: ${result.failure} failed out of ${tokens.length}`);
-            // We could parse results to see which tokens failed (e.g., NotRegistered) and remove them from DB.
+        if (response.failureCount > 0) {
+            const failedTokens: string[] = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    failedTokens.push(tokens[idx]);
+                    // console.log(`[Push] Token failed: ${ tokens[idx] } - Error: ${ resp.error?.code } `);
+                }
+            });
+             console.warn(`[Push] Partial failure: ${ response.failureCount } failed.`);
+             // Ideally remove bad tokens here
         }
 
-        return res.status(200).json({ success: true, fcmResult: result });
+        return res.status(200).json({ 
+            success: true, 
+            successCount: response.successCount, 
+            failureCount: response.failureCount 
+        });
 
     } catch (e: any) {
         console.error('[Push Error]', e);
         return res.status(500).json({ error: e.message });
     }
 }
+```
