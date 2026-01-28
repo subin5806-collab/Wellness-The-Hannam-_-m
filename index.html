@@ -94,7 +94,7 @@
 </script>
     <script>
         // [CRITICAL FIX] Service Worker Management & Kakao Compatibility
-        // Version: 2026.01.28.v10 (Moved to HEAD)
+        // Version: 2026.01.28.v11 (Object.defineProperty Force Mock)
         (function () {
             const ua = navigator.userAgent;
             const isKakao = /KAKAOTALK|DaumApps/i.test(ua);
@@ -102,16 +102,41 @@
             // 1. KAKAOTALK/NATIVE APP SPECIFIC FIX
             if (isKakao) {
                 console.warn('[System] Native App (Kakao) detected. PREVENTING Service Workers.');
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker = {
-                        register: function () { return new Promise(() => { }); },
-                        ready: new Promise(() => { }),
-                        addEventListener: function () { },
-                        removeEventListener: function () { },
-                        getRegistrations: function () { return Promise.resolve([]); },
-                        controller: null,
-                        startMessages: function () { }
-                    };
+                
+                const dummySW = {
+                    register: function () { return new Promise(() => { }); },
+                    ready: new Promise(() => { }),
+                    addEventListener: function () { },
+                    removeEventListener: function () { },
+                    getRegistrations: function () { return Promise.resolve([]); },
+                    controller: null,
+                    startMessages: function () { },
+                    dispatchEvent: function() { return false; }
+                };
+
+                try {
+                    // Try to unregister real ones if they exist
+                    if ('serviceWorker' in navigator && navigator.serviceWorker?.getRegistrations) {
+                        navigator.serviceWorker.getRegistrations().then(regs => {
+                            regs.forEach(r => r.unregister());
+                        }).catch(() => {});
+                    }
+
+                    // FORCE OVERRIDE
+                    Object.defineProperty(navigator, 'serviceWorker', {
+                        value: dummySW,
+                        writable: false,
+                        configurable: true, 
+                        enumerable: true
+                    });
+                    console.log('[System] navigator.serviceWorker Force-Mocked');
+
+                } catch (e) {
+                    console.error('[System] Failed to mock SW', e);
+                    // Fallback for older browsers or strict environments
+                    try {
+                        navigator.__proto__.serviceWorker = dummySW;
+                    } catch(e2) {}
                 }
                 return;
             }
