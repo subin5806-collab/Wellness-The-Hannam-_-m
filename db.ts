@@ -1066,28 +1066,92 @@ export const db = {
   },
   notifications: {
     getByMemberId: async (memberId: string) => {
-      const { data } = await supabase.from('hannam_notifications')
-        .select('*')
-        .eq('member_id', memberId)
-        .order('created_at', { ascending: false });
+      // [SECURITY] Prefer user_id if available, fallback to member_id
+      const { data: { user } } = await supabase.auth.getUser();
+      let query = supabase.from('hannam_notifications').select('*').order('created_at', { ascending: false });
+
+      if (user) {
+        query = query.eq('user_id', user.id);
+      } else {
+        query = query.eq('member_id', memberId);
+      }
+
+      const { data } = await query;
       return transformKeys(data || [], 'toCamel') as Notification[];
     },
     markAsRead: async (id: string) => {
       await supabase.from('hannam_notifications').update({ is_read: true }).eq('id', id);
     },
     add: async (noti: any) => {
-      // [FIX] Explicit filtering: 'type' column does not exist in schema, so we do not send it.
-      const { data, error } = await supabase.from('hannam_notifications').insert([transformKeys({
+      // [SECURITY] Try to fetch user_id for the target member
+      // This is tricky for Admin sending to Member (Admin doesn't know Member's UUID easily without lookup)
+      // For now, we insert member_id. A trigger or lookup could fill user_id, 
+      // or we rely on the migration script to map them later?
+      // BETTER: Insert member_id AND optional user_id if known.
+
+      // Attempt to look up UUID from member table? (Not possible if member table uses Phone ID)
+      // We will rely on member_id for now, but RLS allows admins to insert.
+
+      const payload = {
         id: `NOTI-${Date.now()}`,
-        memberId: noti.memberId,
+        member_id: noti.memberId,
         title: noti.title,
         content: noti.content,
-        isRead: false,
-        createdAt: new Date().toISOString()
-      }, 'toSnake')]).select();
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase.from('hannam_notifications').insert([payload]).select();
 
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel') as Notification;
+    },
+    getBadgeCount: async (memberId: string) => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+
+        // 1. Unread Personal Notifications
+        let personalCount = 0;
+        let pQuery = supabase.from('hannam_notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_read', false);
+
+        if (user) pQuery = pQuery.eq('user_id', user.id);
+        else pQuery = pQuery.eq('member_id', memberId);
+
+        const { count: pCount } = await pQuery;
+        personalCount = pCount || 0;
+
+        // 2. Unread Public Notices
+        // Logic: Total Active Notices - Confirmed Notices
+        const today = new Date().toISOString().split('T')[0];
+        const { count: totalNotices } = await supabase.from('hannam_notices')
+          .select('*', { count: 'exact', head: true })
+          .lte('start_date', today)
+          .gte('end_date', today);
+
+        // Get User's confirmed list
+        const { data: memberData } = await supabase.from('hannam_members')
+          .select('confirmed_notice_ids')
+          .eq('id', memberId) // Phone ID
+          .single();
+
+        const confirmedCount = memberData?.confirmed_notice_ids ? memberData.confirmed_notice_ids.length : 0;
+
+        let noticeCount = (totalNotices || 0) - confirmedCount;
+        if (noticeCount < 0) noticeCount = 0;
+
+        const totalBadge = personalCount + noticeCount;
+
+        // [PWA Badge]
+        if ('setAppBadge' in navigator) {
+          navigator.setAppBadge(totalBadge).catch(() => { });
+        }
+
+        return { total: totalBadge, personal: personalCount, notice: noticeCount };
+      } catch (e) {
+        return { total: 0, personal: 0, notice: 0 };
+      }
     }
   },
   fcmTokens: {

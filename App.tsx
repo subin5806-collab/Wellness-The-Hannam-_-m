@@ -17,27 +17,43 @@ import PWAInstallBanner from './components/PWAInstallBanner';
 import { FcmService } from './src/firebase';
 
 const App: React.FC = () => {
-  // [PWA] Request Notification Permission on Mount 
+  // [PWA] Request Notification Permission & Badge Update
   useEffect(() => {
-    const initFcm = async () => {
-      // We read from localStorage directly or use state
+    const init = async () => {
       const saved = localStorage.getItem('hannam_auth_session');
       if (saved) {
         const session = JSON.parse(saved);
         if (session?.id) {
-          // Pass the ID (Phone Number or UUID) to save token
+          // 1. Permission & Token
           await FcmService.requestPermission(session.id);
+
+          // 2. Initial Badge Count
+          await updateBadge(session.id);
         }
       }
     };
-    initFcm();
+    init();
 
-    // Listen for foreground messages
-    FcmService.onForegroundMessage((payload) => {
+    // Listen for foreground messages -> Update Badge
+    FcmService.onForegroundMessage(async (payload) => {
       console.log("Foreground Push:", payload);
-      // Optional: Toast
+      // Refresh badge
+      const saved = localStorage.getItem('hannam_auth_session');
+      if (saved) {
+        const session = JSON.parse(saved);
+        if (session?.id) await updateBadge(session.id);
+      }
     });
   }, []);
+
+  const updateBadge = async (memberId: string) => {
+    try {
+      const counts = await db.notifications.getBadgeCount(memberId);
+      console.log('[App] Badge Updated:', counts);
+    } catch (e) {
+      console.error('[App] Badge Update Failed:', e);
+    }
+  };
 
   const [auth, setAuth] = useState<{ type: 'admin' | 'member' | null; id: string | null; email?: string }>(() => {
     const saved = localStorage.getItem('hannam_auth_session');
