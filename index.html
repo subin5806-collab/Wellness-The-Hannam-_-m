@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>웰니스 더 한남 (Wellness,The Hannam)</title>
     <meta property="og:title" content="웰니스,더 한남 멤버십" />
     <meta property="og:description" content="한남동 프리미엄 웰니스 케어 서비스 예약 및 안내" />
@@ -65,6 +68,16 @@
         .card-rounded {
             border-radius: 20px;
         }
+
+        #fallback-message {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            gap: 20px;
+            color: #1A3C34;
+        }
     </style>
     <script type="importmap">
 {
@@ -82,18 +95,26 @@
 </head>
 
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div id="fallback-message">
+            <h1 style="font-size: 24px; font-weight: bold;">Wellness, The Hannam</h1>
+            <p>Loading...</p>
+            <p style="font-size: 12px; color: #999;">화면이 멈춰있다면 아래 버튼을 눌러주세요</p>
+            <button onclick="window.location.href='/?t='+Date.now()"
+                style="padding: 10px 20px; background: #1A3C34; color: white; border-radius: 8px; border: none;">새로고침</button>
+        </div>
+    </div>
     <script type="module" src="index.tsx"></script>
     <script>
         // [CRITICAL FIX] Service Worker Management & Kakao Compatibility
-        // Version: 2026.01.27.v7 (Kakao Exclusion)
+        // Version: 2026.01.27.v8 (Kakao Exclusion + HTML Fallback)
         (async function () {
             const ua = navigator.userAgent;
-            const isKakao = /KAKAOTALK/i.test(ua);
+            const isKakao = /KAKAOTALK|DaumApps/i.test(ua);
 
             // 1. KAKAOTALK/NATIVE APP SPECIFIC FIX: KILL SWs & DISABLE
             // Kakao in-app browser hates Service Workers -> White Screen.
-            if (/KAKAOTALK|DaumApps/i.test(ua)) {
+            if (isKakao) {
                 console.warn('[System] Native App (Kakao) detected. Disabling Service Workers.');
 
                 // Unregister existing workers immediately
@@ -106,13 +127,17 @@
                 }
 
                 // Force clear cache once for Kakao users to fix white screen
-                const KAKAO_RESET = 'kakao_reset_v1';
+                const KAKAO_RESET = 'kakao_reset_v2';
                 if (!localStorage.getItem(KAKAO_RESET) && 'caches' in window) {
                     caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
                         .then(() => {
                             localStorage.setItem(KAKAO_RESET, 'true');
-                            window.location.reload();
+                            // Force Timestamp Reload to bypass Kakao Cache
+                            window.location.href = '/?t=' + Date.now();
                         });
+                } else {
+                    // Even if reset done, if we are in Kakao, we must ensure NO SW is active
+                    // The return below ensures we don't accidentally register one later if code falls through
                 }
 
                 // IMPORTANT: Stop execution of any SW logic here.
@@ -121,11 +146,11 @@
 
             // 2. GENERAL "KILL SWITCH" for Stale Cache (Non-Kakao)
             // Only runs once to fix white screen issues on other browsers.
-            const RESET_KEY = 'wellness_reset_v20260127_final_v7'; // Bump version
+            const RESET_KEY = 'wellness_reset_v20260127_final_v8'; // Bump version
             const hasReset = localStorage.getItem(RESET_KEY);
 
             if (!hasReset) {
-                console.warn('[System] Executing Critical Cache & SW Cleanup (v7)...');
+                console.warn('[System] Executing Critical Cache & SW Cleanup (v8)...');
                 try {
                     // Unregister all first to be safe
                     if ('serviceWorker' in navigator) {
@@ -146,7 +171,7 @@
                     console.error('[System] Cleanup Failed:', e);
                 }
             } else {
-                console.log('[System] Service Worker & Cache status: Clean (v7 verified)');
+                console.log('[System] Service Worker & Cache status: Clean (v8 verified)');
             }
         })();
     </script>
