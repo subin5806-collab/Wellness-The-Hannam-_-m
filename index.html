@@ -119,15 +119,32 @@
 
                 // Unregister existing workers immediately
                 if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                    try {
+                        const registrations = await navigator.serviceWorker.getRegistrations();
                         for (const registration of registrations) {
-                            registration.unregister().then(() => console.log('Kakao SW Unregistered'));
+                            await registration.unregister();
+                            console.log('Kakao SW Unregistered');
                         }
+                    } catch (e) {
+                        console.error('SW Unregister Failed', e);
+                    }
+                }
+
+                // NUCLEAR OPTION: Delete the API entirely so React/Firebase CANNOT register anything
+                // This prevents the "hanging" during registration
+                try {
+                    Object.defineProperty(navigator, 'serviceWorker', {
+                        value: undefined,
+                        writable: false,
+                        configurable: false
                     });
+                    console.log('[System] navigator.serviceWorker has been NULLIFIED');
+                } catch (e) {
+                    console.error('Failed to nullify SW API', e);
                 }
 
                 // Force clear cache once for Kakao users to fix white screen
-                const KAKAO_RESET = 'kakao_reset_v2';
+                const KAKAO_RESET = 'kakao_reset_v3';
                 if (!localStorage.getItem(KAKAO_RESET) && 'caches' in window) {
                     caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))))
                         .then(() => {
@@ -135,9 +152,6 @@
                             // Force Timestamp Reload to bypass Kakao Cache
                             window.location.href = '/?t=' + Date.now();
                         });
-                } else {
-                    // Even if reset done, if we are in Kakao, we must ensure NO SW is active
-                    // The return below ensures we don't accidentally register one later if code falls through
                 }
 
                 // IMPORTANT: Stop execution of any SW logic here.

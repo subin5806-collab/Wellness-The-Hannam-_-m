@@ -730,37 +730,49 @@ export default function MemberManagement() {
   }
 
   return (
-    <div className="w-full space-y-8 pb-24 page-transition">
-      <header className="flex justify-between items-end border-b pb-12">
-        <div><h2 className="text-4xl font-bold text-[#2F3A32]">회원 통합 관리</h2><p className="text-[11px] text-[#A58E6F] font-bold mt-2 uppercase tracking-[0.5em]">Membership Archive Control Center</p></div>
+    <div className="w-full space-y-6 lg:space-y-8 pb-24 page-transition">
+      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end border-b pb-6 lg:pb-12 gap-4 lg:gap-0">
+        <div><h2 className="text-2xl lg:text-4xl font-bold text-[#2F3A32]">회원 통합 관리</h2><p className="text-[9px] lg:text-[11px] text-[#A58E6F] font-bold mt-2 uppercase tracking-[0.5em]">Membership Archive Control Center</p></div>
         <button
           onClick={() => setShowRegistrationModal(true)}
-          className="px-8 py-4 bg-[#2F3A32] text-white rounded-[24px] font-bold text-xs uppercase tracking-widest hover:bg-[#1A3C34] transition-all shadow-lg flex items-center gap-3"
+          className="w-full lg:w-auto px-8 py-4 bg-[#2F3A32] text-white rounded-[24px] font-bold text-xs uppercase tracking-widest hover:bg-[#1A3C34] transition-all shadow-lg flex items-center justify-center gap-3"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-          신규 회원 등록 (Automatic ID)
+          신규 회원 등록 <span className="hidden lg:inline">(Automatic ID)</span>
         </button>
       </header>
 
-      <section className="bg-white p-10 rounded-3xl border shadow-sm space-y-8">
-        <div className="grid grid-cols-12 gap-8 items-end">
-          <div className="col-span-4 space-y-3">
+      <section className="bg-white p-6 lg:p-10 rounded-3xl border shadow-sm space-y-6 lg:space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8 items-end">
+          <div className="col-span-1 lg:col-span-4 space-y-2 lg:space-y-3">
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-4">성함 / 연락처</label>
-            <input type="text" placeholder="검색어 입력..." className="w-full px-10 py-5 bg-slate-50 border rounded-[28px] outline-none font-bold" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <input type="text" placeholder="검색어 입력..." className="w-full px-6 lg:px-10 py-4 lg:py-5 bg-slate-50 border rounded-[28px] outline-none font-bold text-sm lg:text-base" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
-          <div className="col-span-3 space-y-3">
+          <div className="col-span-1 lg:col-span-3 space-y-2 lg:space-y-3">
             <label className="text-[11px] font-bold text-rose-400 uppercase tracking-widest ml-4">만료 예정 (~까지)</label>
-            <input type="date" className="w-full px-10 py-5 bg-slate-50 border rounded-[28px] outline-none font-bold" value={expiryFilter} onChange={e => setExpiryFilter(e.target.value)} />
+            <input type="date" className="w-full px-6 lg:px-10 py-4 lg:py-5 bg-slate-50 border rounded-[28px] outline-none font-bold text-sm lg:text-base" value={expiryFilter} onChange={e => setExpiryFilter(e.target.value)} />
           </div>
-          <div className="col-span-3 space-y-3">
+          <div className="col-span-1 lg:col-span-3 space-y-2 lg:space-y-3">
             <label className="text-[11px] font-bold text-[#A58E6F] uppercase tracking-widest ml-4">잔액 부족 (~이하)</label>
-            <input type="number" placeholder="금액 입력..." className="w-full px-10 py-5 bg-slate-50 border rounded-[28px] outline-none font-bold" value={balanceFilter} onChange={e => setBalanceFilter(e.target.value === '' ? '' : +e.target.value)} />
+            <input type="number" placeholder="금액 입력..." className="w-full px-6 lg:px-10 py-4 lg:py-5 bg-slate-50 border rounded-[28px] outline-none font-bold text-sm lg:text-base" value={balanceFilter} onChange={e => setBalanceFilter(e.target.value === '' ? '' : +e.target.value)} />
           </div>
-          <div className="col-span-2"><button onClick={() => { setSearchTerm(''); setExpiryFilter(''); setBalanceFilter(''); }} className="w-full py-5 bg-slate-100 text-slate-400 rounded-[28px] font-bold uppercase text-[11px] tracking-widest">초기화</button></div>
+          <div className="col-span-1 lg:col-span-2"><button onClick={() => { setSearchTerm(''); setExpiryFilter(''); setBalanceFilter(''); }} className="w-full py-4 lg:py-5 bg-slate-100 text-slate-400 rounded-[28px] font-bold uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-colors">초기화</button></div>
         </div>
       </section>
+      
+      {selectedMemberIds.size > 0 && (
+         <div className="lg:hidden w-full">
+            <button
+              onClick={() => setShowNotiModal(true)}
+              className="w-full py-4 bg-[#2F3A32] text-white text-[12px] font-bold rounded-2xl hover:bg-[#1A3C34] transition-all uppercase tracking-widest shadow-md animate-in fade-in slide-in-from-top-2"
+            >
+              선택된 {selectedMemberIds.size}명에게 알림 발송
+            </button>
+         </div>
+      )}
 
-      <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
+      {/* Desktop Table View */}
+      <div className="hidden lg:block bg-white rounded-3xl border shadow-sm overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-[#F9FAFB] border-b text-[11px] font-bold text-slate-400 uppercase tracking-widest">
             <tr>
@@ -804,6 +816,82 @@ export default function MemberManagement() {
                     />
                   </td>
                   <td className="px-10 py-10">
+                    <div className="flex items-center gap-4 cursor-pointer" onClick={() => handleViewDetails(m)}>
+                      <div className="w-12 h-12 bg-[#F9F9FB] rounded-full flex items-center justify-center text-[10px] font-bold text-[#A58E6F] border border-slate-100 group-hover:border-[#A58E6F] transition-colors">
+                        {m.name.slice(0, 1)}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[15px] font-bold text-[#2F3A32]">{m.name}</p>
+                        <p className="text-[10px] text-slate-300 font-bold tracking-widest">{m.gender === '남성' ? 'MALE' : 'FEMALE'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-10 py-10">
+                    <p className="text-[14px] font-bold text-slate-500 tabular-nums">{m.phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}</p>
+                  </td>
+                  <td className="px-10 py-10">
+                    <div className="space-y-1">
+                      <p className="text-[14px] font-bold text-emerald-600 tabular-nums">₩{Math.floor(totalBal).toLocaleString()}</p>
+                      <p className="text-[11px] font-medium text-slate-400">만료: {latestExp}</p>
+                    </div>
+                  </td>
+                  <td className="px-12 py-10 text-right">
+                    <button onClick={() => handleViewDetails(m)} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-[#1A3C34] hover:text-white transition-all">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="lg:hidden space-y-4">
+         {filteredMembers.map(m => {
+            const ms = allMemberships.filter(ms => ms.memberId === m.id && ms.status === 'active');
+            const totalBal = realBalances[m.id] ?? 0;
+            const latestExp = ms.length > 0 ? ms.reduce((prev, curr) => (prev.expiryDate || '') > (curr.expiryDate || '') ? prev : curr).expiryDate : '-';
+            const isSelected = selectedMemberIds.has(m.id);
+            return (
+               <div key={m.id} className={`bg-white rounded-[24px] p-5 border shadow-sm transition-all ${isSelected ? 'border-[#1A3C34] ring-1 ring-[#1A3C34] bg-slate-50' : 'border-slate-100'}`}>
+                  <div className="flex justify-between items-start mb-4">
+                     <div className="flex items-center gap-3">
+                        <input
+                           type="checkbox"
+                           className="w-5 h-5 rounded border-slate-300 accent-[#1A3C34] cursor-pointer"
+                           checked={isSelected}
+                           onChange={() => toggleSelectMember(m.id)}
+                        />
+                        <div className="flex flex-col">
+                           <h4 className="text-[16px] font-bold text-[#2F3A32]" onClick={() => handleViewDetails(m)}>{m.name}</h4>
+                           <span className="text-[10px] text-slate-400 tracking-wider font-bold tabular-nums">{m.phone}</span>
+                        </div>
+                     </div>
+                     <button onClick={() => handleViewDetails(m)} className="p-2 bg-[#F9F9FB] rounded-lg text-slate-400">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                     </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
+                     <div className="flex flex-col gap-1">
+                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">잔액 (Balance)</span>
+                        <span className="text-[15px] font-bold text-[#2F3A32] tabular-nums">₩{Math.floor(totalBal).toLocaleString()}</span>
+                     </div>
+                     <div className="flex flex-col gap-1 text-right">
+                         <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">만료일</span>
+                         <span className="text-[13px] font-bold text-rose-400 tabular-nums">{latestExp}</span>
+                     </div>
+                  </div>
+               </div>
+            );
+         })}
+      </div>                      className="w-5 h-5 rounded-lg border-slate-300 accent-[#1A3C34] cursor-pointer"
+                      checked={selectedMemberIds.has(m.id)}
+                      onChange={() => toggleSelectMember(m.id)}
+                    />
+                  </td>
+                  <td className="px-10 py-10">
                     <div className="flex items-center gap-2">
                       <div className="font-bold text-[#2F3A32] text-2xl">{m.name}</div>
                       {pushTokens.has(m.id) && (
@@ -825,86 +913,90 @@ export default function MemberManagement() {
                   <td className="px-12 py-10 text-right">
                     <button onClick={() => handleViewDetails(m)} className="px-10 py-4 bg-[#F9F9FB] border border-slate-100 text-[12px] font-bold text-[#A58E6F] rounded-[24px] uppercase hover:bg-[#1A3C34] hover:text-white transition-all shadow-sm">상세 파일 조회</button>
                   </td>
-                </tr>
+                </tr >
               );
-            })}
-          </tbody>
-        </table>
-      </div>
+})}
+          </tbody >
+        </table >
+      </div >
 
-      {showNotiModal && (
-        <NotificationModal
-          recipientCount={selectedMember ? 1 : selectedMemberIds.size}
-          onClose={() => setShowNotiModal(false)}
-          onSend={handleNotificationSend}
-        />
-      )}
+  { showNotiModal && (
+    <NotificationModal
+      recipientCount={selectedMember ? 1 : selectedMemberIds.size}
+      onClose={() => setShowNotiModal(false)}
+      onSend={handleNotificationSend}
+    />
+  )}
 
-      {showRegistrationModal && (
-        <MemberRegistrationModal
-          initialData={editingMember}
-          onClose={() => {
-            setShowRegistrationModal(false);
-            setEditingMember(null);
-          }}
-          onSuccess={() => {
-            setShowRegistrationModal(false);
-            setEditingMember(null);
-            fetchMembers();
-          }}
-        />
-      )}
+{
+  showRegistrationModal && (
+    <MemberRegistrationModal
+      initialData={editingMember}
+      onClose={() => {
+        setShowRegistrationModal(false);
+        setEditingMember(null);
+      }}
+      onSuccess={() => {
+        setShowRegistrationModal(false);
+        setEditingMember(null);
+        fetchMembers();
+      }}
+    />
+  )
+}
 
-      {/* [NEW] Hard Delete Double-Check Modal */}
-      {showDeleteModal && selectedMember && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[9000] flex items-center justify-center p-8">
-          <div className="bg-white p-16 rounded-[60px] max-w-2xl w-full text-center space-y-10 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-            {/* Warning Header */}
-            <div className="flex flex-col items-center gap-6">
-              <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mb-2">
-                <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-              </div>
-              <h4 className="text-3xl font-bold text-[#2F3A32]">영구 삭제 확인</h4>
-            </div>
-
-            {/* Critical Message */}
-            <div className="space-y-4">
-              <p className="text-lg font-bold text-rose-500 px-6 py-4 bg-rose-50 rounded-2xl border border-rose-100">
-                영구 삭제 시 복구가 불가능하며<br />모든 케어 기록과 결제 내역이 삭제됩니다.
-              </p>
-              <p className="text-[14px] text-slate-500 font-medium">
-                정말로 <strong>{selectedMember.name}</strong> 회원님의 모든 정보를 삭제하시겠습니까?
-              </p>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-bold transition-all text-[15px]"
-              >
-                취소 (돌아가기)
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    await db.members.delete(selectedMember.id);
-                    alert('회원 정보가 영구적으로 삭제되었습니다.');
-                    setShowDeleteModal(false);
-                    setSelectedMember(null);
-                    fetchMembers();
-                  } catch (e: any) { alert(e.message); }
-                }}
-                className="py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-3xl font-bold shadow-lg hover:shadow-xl transition-all text-[15px]"
-              >
-                삭제 확정
-              </button>
-            </div>
+{/* [NEW] Hard Delete Double-Check Modal */ }
+{
+  showDeleteModal && selectedMember && (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[9000] flex items-center justify-center p-8">
+      <div className="bg-white p-16 rounded-[60px] max-w-2xl w-full text-center space-y-10 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+        {/* Warning Header */}
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mb-2">
+            <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
           </div>
+          <h4 className="text-3xl font-bold text-[#2F3A32]">영구 삭제 확인</h4>
         </div>
-      )}
 
+        {/* Critical Message */}
+        <div className="space-y-4">
+          <p className="text-lg font-bold text-rose-500 px-6 py-4 bg-rose-50 rounded-2xl border border-rose-100">
+            영구 삭제 시 복구가 불가능하며<br />모든 케어 기록과 결제 내역이 삭제됩니다.
+          </p>
+          <p className="text-[14px] text-slate-500 font-medium">
+            정말로 <strong>{selectedMember.name}</strong> 회원님의 모든 정보를 삭제하시겠습니까?
+          </p>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-4 pt-4">
+          <button
+            onClick={() => setShowDeleteModal(false)}
+            className="py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-bold transition-all text-[15px]"
+          >
+            취소 (돌아가기)
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await db.members.delete(selectedMember.id);
+                alert('회원 정보가 영구적으로 삭제되었습니다.');
+                setShowDeleteModal(false);
+                setSelectedMember(null);
+                fetchMembers();
+              } catch (e: any) { alert(e.message); }
+            }}
+            className="py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-3xl font-bold shadow-lg hover:shadow-xl transition-all text-[15px]"
+          >
+            삭제 확정
+          </button>
+        </div>
+      </div>
     </div>
+  )
+}
+
+    </div >
   )
 }
 
