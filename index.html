@@ -92,6 +92,57 @@
   }
 }
 </script>
+    <script>
+        // [CRITICAL FIX] Service Worker Management & Kakao Compatibility
+        // Version: 2026.01.28.v10 (Moved to HEAD)
+        (function () {
+            const ua = navigator.userAgent;
+            const isKakao = /KAKAOTALK|DaumApps/i.test(ua);
+
+            // 1. KAKAOTALK/NATIVE APP SPECIFIC FIX
+            if (isKakao) {
+                console.warn('[System] Native App (Kakao) detected. PREVENTING Service Workers.');
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker = {
+                        register: function () { return new Promise(() => { }); },
+                        ready: new Promise(() => { }),
+                        addEventListener: function () { },
+                        removeEventListener: function () { },
+                        getRegistrations: function () { return Promise.resolve([]); },
+                        controller: null,
+                        startMessages: function () { }
+                    };
+                }
+                return;
+            }
+
+            // 2. GENERAL CLEANUP (Non-Kakao)
+            const RESET_KEY = 'wellness_reset_v9';
+            if (!localStorage.getItem(RESET_KEY)) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+                }
+                if ('caches' in window) {
+                    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
+                }
+                localStorage.setItem(RESET_KEY, 'true');
+                console.log('[System] Cache Reset Complete (v9)');
+            }
+
+            // 3. Register Service Worker for PWA/Push (Non-Kakao)
+            if ('serviceWorker' in navigator && !isKakao) {
+                window.addEventListener('load', function () {
+                    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                        .then(function (registration) {
+                            console.log('Service Worker Registered with scope:', registration.scope);
+                        })
+                        .catch(function (err) {
+                            console.error('Service Worker registration failed:', err);
+                        });
+                });
+            }
+        })();
+    </script>
 </head>
 
 
@@ -170,78 +221,7 @@
         </div>
     </div>
     <script type="module" src="index.tsx"></script>
-    <script>
-        // [CRITICAL FIX] Service Worker Management & Kakao Compatibility
-        // Version: 2026.01.28.v9 (HEAD Injection + Mock Object)
-        (function () {
-            const ua = navigator.userAgent;
-            const isKakao = /KAKAOTALK|DaumApps/i.test(ua);
 
-            // 1. KAKAOTALK/NATIVE APP SPECIFIC FIX
-            if (isKakao) {
-                console.warn('[System] Native App (Kakao) detected. PREVENTING Service Workers.');
-
-                // Mock the API to prevent crashes while disabling functionality
-                const dummySW = {
-                    register: function () {
-                        console.log('[System] SW registration blocked (Kakao)');
-                        return new Promise(() => { }); // Never resolve/reject matches "hanging" but better than crash? Or just resolve null.
-                        // User wants 100% disable.
-                        return Promise.resolve(null);
-                    },
-                    getRegistrations: function () { return Promise.resolve([]); },
-                    ready: new Promise(() => { }) // Never ready
-                };
-
-                try {
-                    // Try to unregister real ones if they exist
-                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                        navigator.serviceWorker.getRegistrations().then(regs => {
-                            regs.forEach(r => r.unregister());
-                        });
-                    }
-
-                    // OVERRIDE the API
-                    Object.defineProperty(navigator, 'serviceWorker', {
-                        value: dummySW,
-                        writable: false,
-                        configurable: false
-                    });
-                    console.log('[System] navigator.serviceWorker Replaced with Mock');
-
-                } catch (e) {
-                    console.error('[System] Failed to mock SW', e);
-                }
-                return;
-            }
-
-            // 2. GENERAL CLEANUP (Non-Kakao)
-            const RESET_KEY = 'wellness_reset_v9';
-            if (!localStorage.getItem(RESET_KEY)) {
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-                }
-                if ('caches' in window) {
-                    caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
-                }
-                localStorage.setItem(RESET_KEY, 'true');
-                console.log('[System] Cache Reset Complete (v9)');
-            }
-
-            // 3. Register Service Worker for PWA/Push (Non-Kakao)
-            if ('serviceWorker' in navigator && !isKakao) {
-                window.addEventListener('load', function () {
-                    navigator.serviceWorker.register('/firebase-messaging-sw.js')
-                        .then(function (registration) {
-                            console.log('Service Worker Registered with scope:', registration.scope);
-                        })
-                        .catch(function (err) {
-                            console.error('Service Worker registration failed:', err);
-                        });
-                });
-            }
-        })();
-    </script>
 </body>
 
 </html>
