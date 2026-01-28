@@ -5,7 +5,14 @@ import { Member, Notice, Membership, CareRecord, Program, Admin, Reservation, Ma
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ghhknsewwevbgojozdzc.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaGtuc2V3d2V2Ymdvam96ZHpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1ODg1NTUsImV4cCI6MjA4MzE2NDU1NX0.AYHMQSU6d9c7avX8CeOoNekFbJoibVxWno9PkIOuSnc';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    storage: window.localStorage,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
 
 const FIELD_MAP: Record<string, string> = {
   'birth_date': 'birthDate',
@@ -1085,19 +1092,43 @@ export const db = {
   },
   fcmTokens: {
     add: async (memberId: string, token: string) => {
-      const { error } = await supabase.from('hannam_fcm_tokens').upsert({
-        member_id: memberId,
+      // [SECURITY] Single Device Policy + User ID Link
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.warn('Cannot save FCM token: No active session.');
+        return;
+      }
+
+      // 1. [Single Device] Delete ALL existing tokens for this user
+      // efficient way to ensure "Old Phone No Alert"
+      const { error: deleteError } = await supabase
+        .from('hannam_fcm_tokens')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (deleteError) {
+        console.error("Failed to clear old tokens:", deleteError);
+      }
+
+      // 2. Insert NEW Token
+      const { error } = await supabase.from('hannam_fcm_tokens').insert({
+        user_id: user.id, // [CRITICAL] Link to Auth User (UUID)
+        member_id: memberId, // Keep for reference/admin search (Phone)
         token: token,
         device_type: 'web',
         updated_at: new Date().toISOString()
-      }, { onConflict: 'member_id, token' });
+      });
+
       if (error) console.error("Failed to save FCM token:", error);
     },
     getByMemberId: async (memberId: string) => {
+      // Admin usage: Read by Phone ID
       const { data } = await supabase.from('hannam_fcm_tokens').select('token').eq('member_id', memberId);
       return data?.map(r => r.token) || [];
     },
     getAllAdmin: async () => {
+      // Returns Member IDs (Phone Numbers) that have tokens
       const { data } = await supabase.from('hannam_fcm_tokens').select('member_id');
       const uniqueIds = new Set(data?.map(r => r.member_id) || []);
       return Array.from(uniqueIds);
