@@ -8,15 +8,6 @@ interface AdminLayoutProps {
   onLogout: () => void;
 }
 
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import QuickReservationModal from './admin/reservation/QuickReservationModal';
-
-interface AdminLayoutProps {
-  children: React.ReactNode;
-  onLogout: () => void;
-}
-
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
   const location = useLocation();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
