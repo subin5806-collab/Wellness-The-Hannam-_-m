@@ -64,7 +64,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 notification: {
                     sound: 'default',
                     priority: 'high', // Android notification priority
-                    channelId: 'default' // Required for Android 8+ (Oreo)
+                    channelId: 'default', // Required for Android 8+ (Oreo)
+                    notificationCount: 1  // [Badge] Samsung/Android badge count
                 }
             },
 
