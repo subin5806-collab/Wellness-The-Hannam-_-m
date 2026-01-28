@@ -15,7 +15,11 @@ export default function PWAInstallBanner() {
         setIsKakao(isKakaoTalk);
         setIsIOS(isIphone);
 
-        // Standard PWA Prompt (Android/Desktop)
+        if (localStorage.getItem('pwa_banner_closed') === 'true') {
+            setIsVisible(false);
+            return;
+        }
+
         const handler = (e: any) => {
             e.preventDefault();
             setDeferredPrompt(e);
@@ -40,6 +44,11 @@ export default function PWAInstallBanner() {
 
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
+
+    const handleClose = () => {
+        setIsVisible(false);
+        localStorage.setItem('pwa_banner_closed', 'true');
+    };
 
     const handleInstallClick = async () => {
         if (isKakao) {
@@ -72,7 +81,7 @@ export default function PWAInstallBanner() {
                 <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-white rounded-lg border border-slate-100 flex items-center justify-center shadow-sm overflow-hidden shrink-0">
-                            <img src="/pwa-icon-v2.png" alt="App Icon" className="w-full h-full object-contain p-1" />
+                            <img src="/pwa-icon-v3.png" alt="App Icon" className="w-full h-full object-contain p-1" />
                         </div>
                         <div className="flex flex-col">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Official App</span>
@@ -82,12 +91,20 @@ export default function PWAInstallBanner() {
                             <span className="text-[9px] text-slate-400">(Wellness,The Hannam)</span>
                         </div>
                     </div>
-                    <button
-                        onClick={handleInstallClick}
-                        className="bg-[#2F3A32] text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-[#1A3C34] transition-colors flex items-center gap-1"
-                    >
-                        <span>⬇</span> 설치
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleInstallClick}
+                            className="bg-[#2F3A32] text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-[#1A3C34] transition-colors flex items-center gap-1"
+                        >
+                            <span>⬇</span> 설치
+                        </button>
+                        <button
+                            onClick={handleClose}
+                            className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-100 transition-colors"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
