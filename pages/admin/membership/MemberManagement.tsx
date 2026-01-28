@@ -759,16 +759,16 @@ export default function MemberManagement() {
           <div className="col-span-1 lg:col-span-2"><button onClick={() => { setSearchTerm(''); setExpiryFilter(''); setBalanceFilter(''); }} className="w-full py-4 lg:py-5 bg-slate-100 text-slate-400 rounded-[28px] font-bold uppercase text-[11px] tracking-widest hover:bg-slate-200 transition-colors">초기화</button></div>
         </div>
       </section>
-      
+
       {selectedMemberIds.size > 0 && (
-         <div className="lg:hidden w-full">
-            <button
-              onClick={() => setShowNotiModal(true)}
-              className="w-full py-4 bg-[#2F3A32] text-white text-[12px] font-bold rounded-2xl hover:bg-[#1A3C34] transition-all uppercase tracking-widest shadow-md animate-in fade-in slide-in-from-top-2"
-            >
-              선택된 {selectedMemberIds.size}명에게 알림 발송
-            </button>
-         </div>
+        <div className="lg:hidden w-full">
+          <button
+            onClick={() => setShowNotiModal(true)}
+            className="w-full py-4 bg-[#2F3A32] text-white text-[12px] font-bold rounded-2xl hover:bg-[#1A3C34] transition-all uppercase tracking-widest shadow-md animate-in fade-in slide-in-from-top-2"
+          >
+            선택된 {selectedMemberIds.size}명에게 알림 발송
+          </button>
+        </div>
       )}
 
       {/* Desktop Table View */}
@@ -849,152 +849,120 @@ export default function MemberManagement() {
 
       {/* Mobile Card View */}
       <div className="lg:hidden space-y-4">
-         {filteredMembers.map(m => {
-            const ms = allMemberships.filter(ms => ms.memberId === m.id && ms.status === 'active');
-            const totalBal = realBalances[m.id] ?? 0;
-            const latestExp = ms.length > 0 ? ms.reduce((prev, curr) => (prev.expiryDate || '') > (curr.expiryDate || '') ? prev : curr).expiryDate : '-';
-            const isSelected = selectedMemberIds.has(m.id);
-            return (
-               <div key={m.id} className={`bg-white rounded-[24px] p-5 border shadow-sm transition-all ${isSelected ? 'border-[#1A3C34] ring-1 ring-[#1A3C34] bg-slate-50' : 'border-slate-100'}`}>
-                  <div className="flex justify-between items-start mb-4">
-                     <div className="flex items-center gap-3">
-                        <input
-                           type="checkbox"
-                           className="w-5 h-5 rounded border-slate-300 accent-[#1A3C34] cursor-pointer"
-                           checked={isSelected}
-                           onChange={() => toggleSelectMember(m.id)}
-                        />
-                        <div className="flex flex-col">
-                           <h4 className="text-[16px] font-bold text-[#2F3A32]" onClick={() => handleViewDetails(m)}>{m.name}</h4>
-                           <span className="text-[10px] text-slate-400 tracking-wider font-bold tabular-nums">{m.phone}</span>
-                        </div>
-                     </div>
-                     <button onClick={() => handleViewDetails(m)} className="p-2 bg-[#F9F9FB] rounded-lg text-slate-400">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
-                     </button>
+        {filteredMembers.map(m => {
+          const ms = allMemberships.filter(ms => ms.memberId === m.id && ms.status === 'active');
+          const totalBal = realBalances[m.id] ?? 0;
+          const latestExp = ms.length > 0 ? ms.reduce((prev, curr) => (prev.expiryDate || '') > (curr.expiryDate || '') ? prev : curr).expiryDate : '-';
+          const isSelected = selectedMemberIds.has(m.id);
+          return (
+            <div key={m.id} className={`bg-white rounded-[24px] p-5 border shadow-sm transition-all ${isSelected ? 'border-[#1A3C34] ring-1 ring-[#1A3C34] bg-slate-50' : 'border-slate-100'}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    className="w-5 h-5 rounded border-slate-300 accent-[#1A3C34] cursor-pointer"
+                    checked={isSelected}
+                    onChange={() => toggleSelectMember(m.id)}
+                  />
+                  <div className="flex flex-col">
+                    <h4 className="text-[16px] font-bold text-[#2F3A32]" onClick={() => handleViewDetails(m)}>{m.name}</h4>
+                    <span className="text-[10px] text-slate-400 tracking-wider font-bold tabular-nums">{m.phone}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
-                     <div className="flex flex-col gap-1">
-                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">잔액 (Balance)</span>
-                        <span className="text-[15px] font-bold text-[#2F3A32] tabular-nums">₩{Math.floor(totalBal).toLocaleString()}</span>
-                     </div>
-                     <div className="flex flex-col gap-1 text-right">
-                         <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">만료일</span>
-                         <span className="text-[13px] font-bold text-rose-400 tabular-nums">{latestExp}</span>
-                     </div>
-                  </div>
-               </div>
-            );
-         })}
-      </div>                      className="w-5 h-5 rounded-lg border-slate-300 accent-[#1A3C34] cursor-pointer"
-                      checked={selectedMemberIds.has(m.id)}
-                      onChange={() => toggleSelectMember(m.id)}
-                    />
-                  </td>
-                  <td className="px-10 py-10">
-                    <div className="flex items-center gap-2">
-                      <div className="font-bold text-[#2F3A32] text-2xl">{m.name}</div>
-                      {pushTokens.has(m.id) && (
-                        <span className="bg-sky-100 text-sky-600 px-2 py-0.5 rounded-md text-[10px] font-bold border border-sky-200" title="푸시 알림 가능">🔔 APP</span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-1">HANNAM ID: {m.id.slice(0, 8)}</p>
-                  </td>
-                  <td className="px-10 py-10 text-[18px] text-slate-500 font-bold tabular-nums">
-                    {m.phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}
-                  </td>
-                  <td className="px-10 py-10">
-                    <p className={`text-xl font-black ${totalBal <= 300000 ? 'text-rose-400' : 'text-emerald-600'}`}>₩{totalBal.toLocaleString()}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[10px] text-slate-300 font-bold uppercase">Latest Expiry</span>
-                      <span className="text-[11px] text-[#A58E6F] font-bold tabular-nums">{latestExp}</span>
-                    </div>
-                  </td>
-                  <td className="px-12 py-10 text-right">
-                    <button onClick={() => handleViewDetails(m)} className="px-10 py-4 bg-[#F9F9FB] border border-slate-100 text-[12px] font-bold text-[#A58E6F] rounded-[24px] uppercase hover:bg-[#1A3C34] hover:text-white transition-all shadow-sm">상세 파일 조회</button>
-                  </td>
-                </tr >
-              );
-})}
-          </tbody >
-        </table >
-      </div >
-
-  { showNotiModal && (
-    <NotificationModal
-      recipientCount={selectedMember ? 1 : selectedMemberIds.size}
-      onClose={() => setShowNotiModal(false)}
-      onSend={handleNotificationSend}
-    />
-  )}
-
-{
-  showRegistrationModal && (
-    <MemberRegistrationModal
-      initialData={editingMember}
-      onClose={() => {
-        setShowRegistrationModal(false);
-        setEditingMember(null);
-      }}
-      onSuccess={() => {
-        setShowRegistrationModal(false);
-        setEditingMember(null);
-        fetchMembers();
-      }}
-    />
-  )
-}
-
-{/* [NEW] Hard Delete Double-Check Modal */ }
-{
-  showDeleteModal && selectedMember && (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[9000] flex items-center justify-center p-8">
-      <div className="bg-white p-16 rounded-[60px] max-w-2xl w-full text-center space-y-10 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-        {/* Warning Header */}
-        <div className="flex flex-col items-center gap-6">
-          <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mb-2">
-            <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-          </div>
-          <h4 className="text-3xl font-bold text-[#2F3A32]">영구 삭제 확인</h4>
-        </div>
-
-        {/* Critical Message */}
-        <div className="space-y-4">
-          <p className="text-lg font-bold text-rose-500 px-6 py-4 bg-rose-50 rounded-2xl border border-rose-100">
-            영구 삭제 시 복구가 불가능하며<br />모든 케어 기록과 결제 내역이 삭제됩니다.
-          </p>
-          <p className="text-[14px] text-slate-500 font-medium">
-            정말로 <strong>{selectedMember.name}</strong> 회원님의 모든 정보를 삭제하시겠습니까?
-          </p>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4 pt-4">
-          <button
-            onClick={() => setShowDeleteModal(false)}
-            className="py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-bold transition-all text-[15px]"
-          >
-            취소 (돌아가기)
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                await db.members.delete(selectedMember.id);
-                alert('회원 정보가 영구적으로 삭제되었습니다.');
-                setShowDeleteModal(false);
-                setSelectedMember(null);
-                fetchMembers();
-              } catch (e: any) { alert(e.message); }
-            }}
-            className="py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-3xl font-bold shadow-lg hover:shadow-xl transition-all text-[15px]"
-          >
-            삭제 확정
-          </button>
-        </div>
+                </div>
+                <button onClick={() => handleViewDetails(m)} className="p-2 bg-[#F9F9FB] rounded-lg text-slate-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">잔액 (Balance)</span>
+                  <span className="text-[15px] font-bold text-[#2F3A32] tabular-nums">₩{Math.floor(totalBal).toLocaleString()}</span>
+                </div>
+                <div className="flex flex-col gap-1 text-right">
+                  <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">만료일</span>
+                  <span className="text-[13px] font-bold text-rose-400 tabular-nums">{latestExp}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
-  )
-}
+
+      {showNotiModal && (
+        <NotificationModal
+          recipientCount={selectedMember ? 1 : selectedMemberIds.size}
+          onClose={() => setShowNotiModal(false)}
+          onSend={handleNotificationSend}
+        />
+      )}
+
+      {
+        showRegistrationModal && (
+          <MemberRegistrationModal
+            initialData={editingMember}
+            onClose={() => {
+              setShowRegistrationModal(false);
+              setEditingMember(null);
+            }}
+            onSuccess={() => {
+              setShowRegistrationModal(false);
+              setEditingMember(null);
+              fetchMembers();
+            }}
+          />
+        )
+      }
+
+      {/* [NEW] Hard Delete Double-Check Modal */}
+      {
+        showDeleteModal && selectedMember && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-2xl z-[9000] flex items-center justify-center p-8">
+            <div className="bg-white p-16 rounded-[60px] max-w-2xl w-full text-center space-y-10 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300">
+              {/* Warning Header */}
+              <div className="flex flex-col items-center gap-6">
+                <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mb-2">
+                  <svg className="w-10 h-10 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <h4 className="text-3xl font-bold text-[#2F3A32]">영구 삭제 확인</h4>
+              </div>
+
+              {/* Critical Message */}
+              <div className="space-y-4">
+                <p className="text-lg font-bold text-rose-500 px-6 py-4 bg-rose-50 rounded-2xl border border-rose-100">
+                  영구 삭제 시 복구가 불가능하며<br />모든 케어 기록과 결제 내역이 삭제됩니다.
+                </p>
+                <p className="text-[14px] text-slate-500 font-medium">
+                  정말로 <strong>{selectedMember.name}</strong> 회원님의 모든 정보를 삭제하시겠습니까?
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-4 pt-4">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-bold transition-all text-[15px]"
+                >
+                  취소 (돌아가기)
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await db.members.delete(selectedMember.id);
+                      alert('회원 정보가 영구적으로 삭제되었습니다.');
+                      setShowDeleteModal(false);
+                      setSelectedMember(null);
+                      fetchMembers();
+                    } catch (e: any) { alert(e.message); }
+                  }}
+                  className="py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-3xl font-bold shadow-lg hover:shadow-xl transition-all text-[15px]"
+                >
+                  삭제 확정
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
     </div >
   )
