@@ -172,8 +172,8 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
   const popupNotices = activeNotices.filter(n => n.isPopup);
 
   return (
-    <div className="min-h-screen bg-[#F9F9F7] flex justify-center pb-32 select-none">
-      <div className="w-full max-w-md flex flex-col relative overflow-hidden bg-[#F9F9F7]">
+    <div className="min-h-screen bg-slate-100 flex justify-center pb-0 lg:pb-10 select-none">
+      <div className="w-full max-w-md flex flex-col relative overflow-hidden bg-[#F9F9F7] min-h-screen shadow-2xl">
 
         {/* Header */}
         <header className="px-8 pt-16 pb-6 flex justify-between items-center bg-[#F9F9F7] sticky top-0 z-40">

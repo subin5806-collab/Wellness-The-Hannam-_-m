@@ -8,38 +8,51 @@ interface AdminLayoutProps {
   onLogout: () => void;
 }
 
+import React, { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import QuickReservationModal from './admin/reservation/QuickReservationModal';
+
+interface AdminLayoutProps {
+  children: React.ReactNode;
+  onLogout: () => void;
+}
+
 const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
   const location = useLocation();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
     { path: '/admin', label: '운영 현황' },
-    { path: '/admin/members', label: '회원 통합 관리' }, // Points to MemberManagement
-    { path: '/admin/records', label: '이용 내역 관리' }, // Points to CareRecordManagement
-    { path: '/admin/notices', label: '공지/알림' },      // Points to NoticeManagement
-    { path: '/admin/notification-center', label: '알림 센터 (Push)' }, // Points to NotificationCenter
-    { path: '/admin/settings', label: '시스템 설정' },   // Points to MasterSettings
+    { path: '/admin/members', label: '회원 통합 관리' },
+    { path: '/admin/records', label: '이용 내역 관리' },
+    { path: '/admin/notices', label: '공지/알림' },
+    { path: '/admin/notification-center', label: '알림 센터 (Push)' },
+    { path: '/admin/settings', label: '시스템 설정' },
   ];
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] page-transition">
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E5E8EB] px-10">
-        <div className="w-full h-20 flex items-center justify-between">
-          <div className="flex items-center gap-14">
-            <Link to="/admin" className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-[#2F3A32] rounded-xl flex items-center justify-center text-white text-[14px] font-bold shadow-lg">W</div>
-              <span className="font-bold text-[14px] text-[#2F3A32] tracking-tighter uppercase whitespace-nowrap italic font-serif">Wellness Hannam</span>
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E5E8EB] px-4 lg:px-10">
+        <div className="w-full h-16 lg:h-20 flex items-center justify-between">
+
+          {/* Logo Section */}
+          <div className="flex items-center gap-3 lg:gap-14">
+            <Link to="/admin" className="flex items-center gap-3" onClick={() => setIsMobileMenuOpen(false)}>
+              <div className="w-8 h-8 lg:w-9 lg:h-9 bg-[#2F3A32] rounded-xl flex items-center justify-center text-white text-[12px] lg:text-[14px] font-bold shadow-lg">W</div>
+              <span className="font-bold text-[12px] lg:text-[14px] text-[#2F3A32] tracking-tighter uppercase whitespace-nowrap italic font-serif">Wellness Hannam</span>
             </Link>
 
-            <nav className="flex gap-2">
+            {/* Desktop Nav */}
+            <nav className="hidden lg:flex gap-2">
               {navItems.map((item) => {
                 const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`px-6 py-2.5 text-[13px] font-bold transition-all rounded-xl tracking-tight ${isActive ? 'bg-[#2F3A32] text-white shadow-md' : 'text-[#6B7280] hover:text-[#2F3A32] hover:bg-[#F3F4F6]'
-                      }`}
+                    className={`px-4 py-2 text-[13px] font-bold transition-all rounded-xl tracking-tight ${isActive ? 'bg-[#2F3A32] text-white shadow-md' : 'text-[#6B7280] hover:text-[#2F3A32] hover:bg-[#F3F4F6]'}`}
                   >
                     {item.label}
                   </Link>
@@ -48,7 +61,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
             </nav>
           </div>
 
-          <div className="flex items-center gap-8">
+          {/* Desktop Right Actions */}
+          <div className="hidden lg:flex items-center gap-8">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setShowQuickAdd(true)}
@@ -69,14 +83,65 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
               </button>
             </div>
           </div>
+
+          {/* Mobile Text & Hamburger */}
+          <div className="flex lg:hidden items-center gap-4">
+            <span className="text-[10px] text-[#A58E6F] font-bold tracking-widest uppercase">Admin</span>
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 text-[#2F3A32] bg-slate-50 rounded-lg border border-slate-200"
+            >
+              {isMobileMenuOpen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden py-4 border-t border-slate-100 animate-in slide-in-from-top-2 duration-200">
+            <nav className="flex flex-col gap-2 mb-6">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path));
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`px-4 py-3 text-[14px] font-bold rounded-xl ${isActive ? 'bg-[#2F3A32] text-white' : 'text-[#6B7280] hover:bg-slate-50'}`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="flex flex-col gap-3 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => { setShowQuickAdd(true); setIsMobileMenuOpen(false); }}
+                className="w-full py-3 bg-[#A58E6F] text-white text-xs font-bold rounded-xl uppercase tracking-widest"
+              >
+                Quick Add
+              </button>
+              <button
+                onClick={onLogout}
+                className="w-full py-3 border border-slate-200 text-slate-500 text-xs font-bold rounded-xl uppercase tracking-widest"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
-      <main className="w-full p-10 lg:px-14">
+      {/* Main Content - Responsive Padding */}
+      <main className="w-full p-4 lg:p-14">
         {children}
       </main>
 
-      <footer className="w-full px-8 pb-14 text-center">
+      <footer className="w-full px-8 pb-14 text-center mt-12">
         <div className="w-12 h-px bg-slate-200 mx-auto mb-6"></div>
         <p className="text-[10px] text-[#9CA3AF] font-bold tracking-[0.4em] uppercase">
           © Wellness, The Hannam Digital Concierge & Security System
@@ -87,7 +152,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
         <QuickReservationModal
           onClose={() => setShowQuickAdd(false)}
           onSuccess={() => {
-            // Trigger dashboard refresh if needed
             window.location.reload();
           }}
         />
