@@ -14,6 +14,7 @@ import CareRecordManagement from './pages/admin/care/CareRecordManagement';
 import CareHistorySplitPage from './pages/admin/care/CareHistorySplitPage';
 import NotificationCenter from './pages/admin/system/NotificationCenter';
 import PWAInstallBanner from './components/PWAInstallBanner';
+import { UpdatePrompt } from './components/common/UpdatePrompt';
 
 import { FcmService } from './src/firebase';
 
@@ -77,6 +78,7 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <PWAInstallBanner />
+      <UpdatePrompt />
       <Routes>
         <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 

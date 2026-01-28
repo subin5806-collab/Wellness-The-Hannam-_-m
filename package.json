@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "ts-node scripts/generate-version.ts && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "@types/react-dom": "^19.2.3",
     "@vercel/node": "^5.5.27",
     "@vitejs/plugin-react": "^5.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
