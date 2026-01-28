@@ -384,17 +384,30 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                 {notiTab === 'ANNOUNCE' && (
                   <div className="space-y-4">
                     {activeNotices.map(notice => (
-                      <div key={notice.id} className="bg-white p-8 rounded-[36px] border border-slate-50 shadow-sm space-y-4 group">
+                      <div
+                        key={notice.id}
+                        onClick={async () => {
+                          // [READ LOGIC] Mark as read on click
+                          if (!(notice as any).isRead) {
+                            await db.notices.markAsRead(member.id, notice.id);
+                            fetchData(); // Refresh badge
+                          }
+                        }}
+                        className={`bg-white p-8 rounded-[36px] border shadow-sm space-y-4 group cursor-pointer transition-all ${!(notice as any).isRead ? 'border-emerald-100 ring-1 ring-emerald-50' : 'border-slate-50 opacity-80'}`}
+                      >
                         <div className="flex justify-between items-center">
-                          <span className={`px-2.5 py-1 text-[8px] font-bold rounded-lg uppercase tracking-widest ${notice.category === 'URGENT' ? 'bg-rose-50 text-rose-500' : 'bg-[#1A3C34] text-white'}`}>
-                            {notice.category}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {!(notice as any).isRead && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>}
+                            <span className={`px-2.5 py-1 text-[8px] font-bold rounded-lg uppercase tracking-widest ${notice.category === 'URGENT' ? 'bg-rose-50 text-rose-500' : 'bg-[#1A3C34] text-white'}`}>
+                              {notice.category}
+                            </span>
+                          </div>
                           <span className="text-[9px] text-slate-300 font-bold tabular-nums">{notice.createdAt?.split('T')[0]}</span>
                         </div>
                         <div className="space-y-2">
-                          <h5 className="text-[17px] font-bold text-[#1A3C34] group-hover:text-[#A58E6F] transition-colors">{notice.title}</h5>
+                          <h5 className={`text-[17px] font-bold transition-colors ${!(notice as any).isRead ? 'text-[#1A3C34]' : 'text-slate-400'}`}>{notice.title}</h5>
                           {notice.imageUrl && <div className="w-full aspect-video rounded-2xl bg-slate-50 overflow-hidden mb-2"><img src={notice.imageUrl} className="w-full h-full object-cover" /></div>}
-                          <p className="text-[13px] text-slate-500 leading-relaxed font-medium">{notice.content}</p>
+                          <p className={`text-[13px] leading-relaxed font-medium ${!(notice as any).isRead ? 'text-slate-500' : 'text-slate-400'}`}>{notice.content}</p>
                         </div>
                       </div>
                     ))}

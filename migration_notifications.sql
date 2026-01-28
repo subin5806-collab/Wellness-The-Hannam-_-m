@@ -18,6 +18,7 @@ ON hannam_notifications FOR SELECT
 TO authenticated
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own notifications" ON hannam_notifications;
 CREATE POLICY "Users can update own notifications"
 ON hannam_notifications FOR UPDATE
 TO authenticated
