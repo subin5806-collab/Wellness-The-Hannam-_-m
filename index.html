@@ -145,11 +145,16 @@
                 // Just block Service Worker to prevent crash.
                 console.log('[System] KakaoTalk detected. Blocking SW but allowing Render.');
 
-                // Block Service Worker
+                // Block Service Worker but PREVENT CRASH
                 if ('serviceWorker' in navigator) {
                     navigator.serviceWorker = {
                         register: function () { return new Promise(function () { }); },
-                        ready: new Promise(function () { })
+                        ready: new Promise(function () { }),
+                        addEventListener: function () { },
+                        removeEventListener: function () { },
+                        getRegistrations: function () { return Promise.resolve([]); },
+                        controller: null,
+                        startMessages: function () { } // Some implementations use this
                     };
                 }
             }
