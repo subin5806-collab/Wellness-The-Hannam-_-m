@@ -116,7 +116,8 @@ export default function PWAInstallBanner() {
                             <h3 className="text-lg font-bold text-[#2F3A32] mb-2">홈 화면에 추가하는 방법</h3>
                             <p className="text-sm text-slate-600 mb-6">
                                 하단의 <span className="inline-block p-1 bg-slate-100 rounded-md mx-1">공유</span> 버튼을 누르고<br />
-                                <span className="font-bold text-black">"홈 화면에 추가"</span>를 선택해주세요.
+                                <span className="font-bold text-black">"홈 화면에 추가"</span>를 선택해주세요.<br />
+                                <span className="text-xs text-rose-500 mt-2 block font-bold">* 설치 후 앱을 실행하면 '알림 허용'을 꼭 눌러주세요!</span>
                             </p>
                             <div className="flex justify-center items-center gap-4 mb-6">
                                 <div className="flex flex-col items-center gap-2">

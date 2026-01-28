@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db, hashPassword } from '../../db';
-import { Member, Membership, CareRecord, Program, Reservation, Notice, Notification, MembershipProduct } from '../../types';
+import { Member, Membership, CareRecord, Program, Reservation, Notice, Notification as NotificationData, MembershipProduct } from '../../types';
 import { useBalanceEngine } from '../../hooks/useBalanceEngine';
 import CareDetailModal from '../../components/member/CareDetailModal';
 import SignaturePad from '../../components/common/SignaturePad';
+import { FcmService } from '../../src/firebase';
 
 interface MemberPortalProps {
   memberId: string;
@@ -19,7 +20,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [activeNotices, setActiveNotices] = useState<Notice[]>([]);
-  const [notis, setNotis] = useState<Notification[]>([]);
+  const [notis, setNotis] = useState<NotificationData[]>([]);
   const [msProducts, setMsProducts] = useState<MembershipProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [view, setView] = useState<ViewMode>('dashboard');
@@ -250,6 +251,23 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                       <p className="flex items-center gap-1.5 justify-end text-[8px] text-slate-300 font-bold uppercase tracking-[0.1em]">Joined</p>
                       <p className="text-[13px] font-bold text-[#1A1A1A] tabular-nums">{member.createdAt?.split('T')[0].replace(/-/g, '. ')}</p>
                     </div>
+                    {/* Notification Permission Button */}
+                    {Notification.permission === 'default' && (
+                      <div className="col-span-2 pt-4 border-t border-slate-50 mt-2">
+                        <button
+                          onClick={async () => {
+                            if (confirm('알림을 받아보시겠습니까?')) {
+                              await FcmService.requestPermission(member.id);
+                              window.location.reload();
+                            }
+                          }}
+                          className="w-full py-3 bg-[#F9F9F7] border border-[#2F3A32]/10 rounded-xl text-xs font-bold text-[#2F3A32] flex items-center justify-center gap-2 hover:bg-white transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                          알림 켜기 (Enable Notifications)
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>

@@ -163,6 +163,19 @@
                 localStorage.setItem(RESET_KEY, 'true');
                 console.log('[System] Cache Reset Complete (v9)');
             }
+
+            // 3. Register Service Worker for PWA/Push (Non-Kakao)
+            if ('serviceWorker' in navigator && !isKakao) {
+                window.addEventListener('load', function () {
+                    navigator.serviceWorker.register('/firebase-messaging-sw.js')
+                        .then(function (registration) {
+                            console.log('Service Worker Registered with scope:', registration.scope);
+                        })
+                        .catch(function (err) {
+                            console.error('Service Worker registration failed:', err);
+                        });
+                });
+            }
         })();
     </script>
 </body>
