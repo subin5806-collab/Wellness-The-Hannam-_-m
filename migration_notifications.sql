@@ -16,7 +16,7 @@ DROP POLICY IF EXISTS "Admins can manage notifications" ON hannam_notifications;
 CREATE POLICY "Users can view own notifications"
 ON hannam_notifications FOR SELECT
 TO authenticated
-USING (auth.uid() = user_id OR member_id = (auth.jwt() ->> 'phone_number')); -- Fallback for phone-based if needed, but user_id is better
+USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can update own notifications"
 ON hannam_notifications FOR UPDATE
