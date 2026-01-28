@@ -1,9 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import fetch from 'node-fetch'; // Vercel environment usually has fetch global or node-fetch
 
-// [NOTE] This is a mock implementation because we lack the Firebase Service Account Key.
-// In production, this would use 'firebase-admin' to send actual FCM messages.
-// For now, it logs the request and returns success to simulate the "Test" experience.
-
+// [REAL IMPLEMENTATION] Uses Legacy HTTP Protocol
+// Requires FCM_SERVER_KEY in environment variables.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -15,21 +14,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: 'Missing title, body, or tokens' });
     }
 
-    console.log('------------------------------------------------');
-    console.log('[Push Mock] Sending to', tokens.length, 'devices');
-    console.log('[Title]', title);
-    console.log('[Body]', body);
-    console.log('[Sender] 웰니스, 더 한남');
-    if (data) console.log('[Data]', data);
-    console.log('------------------------------------------------');
+    const SERVER_KEY = process.env.FCM_SERVER_KEY;
+    if (!SERVER_KEY) {
+        console.error('[Critical] FCM_SERVER_KEY is missing in environment variables.');
+        return res.status(500).json({
+            error: 'Server Configuration Error: FCM_SERVER_KEY missing.',
+            solution: 'Please add FCM_SERVER_KEY to Vercel/System Env.'
+        });
+    }
 
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+        console.log(`[Push] Sending to ${tokens.length} devices...`);
 
-    // Success Response
-    return res.status(200).json({
-        success: true,
-        message: `Processed ${tokens.length} messages (Mock)`,
-        results: tokens.map(() => ({ status: 'ok', id: 'mock-msg-' + Date.now() }))
-    });
+        const response = await fetch('https://fcm.googleapis.com/fcm/send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `key=${SERVER_KEY}`
+            },
+            body: JSON.stringify({
+                registration_ids: tokens,
+                notification: {
+                    title: title,
+                    body: body,
+                    icon: '/pwa-icon.png',
+                    click_action: '/'
+                },
+                data: data || {}
+            })
+        });
+
+        const result: any = await response.json();
+        console.log('[FCM Response]', JSON.stringify(result));
+
+        if (result.failure > 0) {
+            console.warn(`[Push] Partial failure: ${result.failure} failed out of ${tokens.length}`);
+            // We could parse results to see which tokens failed (e.g., NotRegistered) and remove them from DB.
+        }
+
+        return res.status(200).json({ success: true, fcmResult: result });
+
+    } catch (e: any) {
+        console.error('[Push Error]', e);
+        return res.status(500).json({ error: e.message });
+    }
 }

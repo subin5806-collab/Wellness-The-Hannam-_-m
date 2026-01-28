@@ -141,12 +141,12 @@
             var ua = navigator.userAgent;
             var isKakao = /KAKAOTALK|DaumApps/i.test(ua);
             if (isKakao) {
-                var overlay = document.getElementById('kakao-overlay');
-                if (overlay) overlay.style.display = 'flex';
+                // [FIX] Do NOT show overlay. Allow App to load.
+                // Just block Service Worker to prevent crash.
+                console.log('[System] KakaoTalk detected. Blocking SW but allowing Render.');
 
                 // Block Service Worker
                 if ('serviceWorker' in navigator) {
-                    // Mock to prevent errors
                     navigator.serviceWorker = {
                         register: function () { return new Promise(function () { }); },
                         ready: new Promise(function () { })
