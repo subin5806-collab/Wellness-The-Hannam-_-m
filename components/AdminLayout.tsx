@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import QuickReservationModal from './admin/reservation/QuickReservationModal';
+import { db } from '../db';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -12,6 +13,31 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
   const location = useLocation();
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navigate = useNavigate(); // Need to import useNavigate
+
+  // [SECURITY FIX] Block Instructor Access to Admin Portal
+  useEffect(() => {
+    const saved = localStorage.getItem('hannam_auth_session');
+    if (saved) {
+      const session = JSON.parse(saved);
+      if (session.email) {
+        db.admins.getByEmail(session.email).then(admin => {
+          if (admin && admin.role === 'INSTRUCTOR') {
+            // Allow only specific routes (like care-record-edit which is under /admin in this app structure)
+            // But usually instructors should be in /instructor/*
+            // If they are attempting to access /admin/members or similar -> FORCE REDIRECT
+            const allowedPaths = ['/admin/care-record-edit'];
+            const isAllowed = allowedPaths.some(p => location.pathname.startsWith(p));
+
+            if (!isAllowed) {
+              console.warn('[Security] Unauthorized Admin Access Attempt by Instructor. Redirecting.');
+              navigate('/instructor', { replace: true });
+            }
+          }
+        });
+      }
+    }
+  }, [location.pathname]);
 
   const navItems = [
     { path: '/admin', label: '운영 현황' },
@@ -19,6 +45,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
     { path: '/admin/records', label: '이용 내역 관리' },
     { path: '/admin/notices', label: '공지/알림' },
     { path: '/admin/notification-center', label: '알림 센터 (Push)' },
+    { path: '/admin/accounts', label: '계정/권한 관리' },
     { path: '/admin/settings', label: '시스템 설정' },
   ];
 

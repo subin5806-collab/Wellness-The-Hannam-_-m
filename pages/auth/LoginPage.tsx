@@ -111,41 +111,47 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     }
   };
 
+  const [adminLoginType, setAdminLoginType] = useState<'MASTER' | 'INSTRUCTOR'>('MASTER');
+
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
     try {
-      const cleanPassword = password.trim();
-      const cleanEmail = adminEmailInput.trim();
+      if (adminLoginType === 'MASTER') {
+        // [MASTER LOGIN] Standard Supabase Email Auth
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+          email: adminEmailInput.trim(),
+          password: password.trim()
+        });
 
-      // [FIX] 1. Attempt Supabase Auth Login (Primary Source of Truth for RLS)
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword
-      });
-
-      if (authError) {
-        // Fallback or specific error handling
-        console.warn("Supabase Auth Error:", authError);
-        if (authError.message === 'Invalid login credentials') {
-          throw new Error('이메일이 없거나 비밀번호가 틀렸습니다.\n(초기 계정이 없다면 관리자에게 등록을 요청하세요)');
+        if (authError) {
+          throw new Error(authError.message === 'Invalid login credentials' ?
+            '로그인 정보가 올바르지 않습니다.' : authError.message);
         }
-        throw new Error(authError.message);
-      }
 
-      if (authData.user) {
-        // [FIX] 2. Success - Session established.
-        onLogin('admin', authData.user.id, authData.user.email);
-        navigate('/admin');
-      } else {
-        throw new Error("로그인 세션을 획득하지 못했습니다.");
-      }
+        if (data.user) {
+          const profile = await db.admins.getByEmail(data.user.email || '');
+          if (!profile) throw new Error('관리자 프로필을 찾을 수 없습니다.');
+          if (profile.role === 'INSTRUCTOR') throw new Error('강사 계정은 강사 로그인 탭을 이용해주세요.');
 
+          onLogin('admin', data.user.id, data.user.email);
+          navigate('/admin'); // Master always goes to /admin
+        } else {
+          throw new Error("로그인 세션을 획득하지 못했습니다.");
+        }
+      } else { // adminLoginType === 'INSTRUCTOR'
+        // [INSTRUCTOR LOGIN] Direct DB Auth (bypass Supabase Phone Auth)
+        const profile = await db.admins.authByPhoneDirect(adminEmailInput, password);
+        if (profile) {
+          if (profile.role !== 'INSTRUCTOR') throw new Error('마스터/스태프 계정은 관리자 로그인 탭을 이용해주세요.');
+          onLogin('admin', profile.id, profile.email);
+          navigate('/instructor');
+        } else {
+          throw new Error('인증 실패: 연락처 또는 비밀번호 끝 4자리를 확인해주세요.');
+        }
+      }
     } catch (err: any) {
-      // [SECURITY FIX] Removed hardcoded fallback. 
-      // All admins MUST authenticate via Supabase to establish RLS session.
-      console.error("Login Error:", err);
       setError(`[관리자 로그인 오류] ${getErrorMessage(err)}`);
     } finally {
       setIsLoading(false);
@@ -191,11 +197,36 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <div className="text-center mb-4">
                 <h2 className="text-[12px] font-bold text-[#A58E6F] uppercase tracking-[0.3em]">Administrator Access</h2>
               </div>
-              <input type="email" placeholder="관리자 이메일" className={inputClass} value={adminEmailInput} onChange={(e) => setAdminEmailInput(e.target.value)} required />
-              <input type="password" placeholder="비밀번호" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} required />
+
+              <div className="flex bg-[#F9FAFB] border border-[#E5E8EB] rounded-3xl p-1">
+                <button type="button" onClick={() => { setAdminLoginType('MASTER'); setError(''); }} className={`flex-1 py-3 text-[10px] font-bold rounded-2xl transition-all tracking-widest ${adminLoginType === 'MASTER' ? 'bg-[#2F3A32] text-white shadow-lg' : 'text-slate-400'}`}>MASTER</button>
+                <button type="button" onClick={() => { setAdminLoginType('INSTRUCTOR'); setError(''); }} className={`flex-1 py-3 text-[10px] font-bold rounded-2xl transition-all tracking-widest ${adminLoginType === 'INSTRUCTOR' ? 'bg-[#2F3A32] text-white shadow-lg' : 'text-slate-400'}`}>INSTRUCTOR</button>
+              </div>
+
+              <div className="space-y-6">
+                <input
+                  type="text"
+                  placeholder={adminLoginType === 'MASTER' ? "이메일 주소" : "휴대폰 번호 (숫자만)"}
+                  className={inputClass}
+                  value={adminEmailInput}
+                  onChange={(e) => setAdminEmailInput(e.target.value)}
+                  required
+                />
+                <input
+                  type="password"
+                  placeholder={adminLoginType === 'MASTER' ? "비밀번호" : "휴대폰 끝 4자리"}
+                  className={inputClass}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
               <div className="space-y-5">
-                <button type="submit" disabled={isLoading} className={loginBtnStyle}>관리자 즉시 접속</button>
-                <button type="button" onClick={() => setMode('MEMBER_LOGIN')} className="w-full text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">회원 로그인으로</button>
+                <button type="submit" disabled={isLoading} className={loginBtnStyle}>
+                  {isLoading ? '인증 중...' : `${adminLoginType === 'MASTER' ? '관리자' : '강사'} 접속하기`}
+                </button>
+                <button type="button" onClick={() => setMode('MEMBER_LOGIN')} className="w-full text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mt-2">회원 로그인으로</button>
               </div>
             </form>
           )}

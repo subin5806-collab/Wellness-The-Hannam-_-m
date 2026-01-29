@@ -26,7 +26,10 @@ const CareSessionPage: React.FC = () => {
   const [msProducts, setMsProducts] = useState<MembershipProduct[]>([]);
 
   // Records & Notes
-  const [notes, setNotes] = useState({ summary: '', details: '', recommendation: '' });
+  const [notes, setNotes] = useState({
+    noteSummary: '',
+    noteRecommendation: ''
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   // const [showSignModal, setShowSignModal] = useState(false); // Unused
 
@@ -34,9 +37,10 @@ const CareSessionPage: React.FC = () => {
 
   const [managers, setManagers] = useState<any[]>([]); // [NEW] Managers List
   const [selectedManagerId, setSelectedManagerId] = useState(''); // [NEW] Selected Manager
+  const [currentAdmin, setCurrentAdmin] = useState<any>(null);
 
   useEffect(() => {
-    if (memberId) loadInitialData();
+    loadInitialData();
   }, [memberId]);
 
   // Sync selected membership when loaded
@@ -82,11 +86,17 @@ const CareSessionPage: React.FC = () => {
         if (p) setCustomOriginalPrice(p.basePrice);
       }
 
-      // [NEW] Auto-select manager from reservation if exists
+      // [NEW] Auto-select manager and load notes from reservation if exists
       if (resId) {
-        const { data } = await supabase.from('hannam_reservations').select('manager_id').eq('id', resId).single();
-        if (data && data.manager_id) {
-          setSelectedManagerId(data.manager_id);
+        const res = await db.reservations.getById(resId);
+        if (res) {
+          if (res.managerId) setSelectedManagerId(res.managerId);
+
+          // Pre-fill notes contributed by Instructor (Real-time Sync)
+          setNotes({
+            noteSummary: (res as any).noteSummary || '',
+            noteRecommendation: (res as any).noteRecommendation || ''
+          });
         }
       }
     } catch (e) { console.error(e); }
@@ -108,8 +118,8 @@ const CareSessionPage: React.FC = () => {
   const handleCompleteSession = async () => {
     if (!member || !selectedProgram || !selectedMembership) return alert('필수 정보 누락');
     if (Math.floor(selectedMembership.calculatedRemaining) < finalAmount) return alert('잔액 부족');
-    if (!notes.summary.trim()) return alert('웰니스 케어 요약을 입력해 주세요.');
-    if (!selectedManagerId) return alert('담당 관리사를 선택해 주세요.'); // [NEW] Validation
+    if (!notes.noteSummary.trim()) return alert('웰니스 케어 요약을 입력해 주세요.');
+    if (!selectedManagerId) return alert('담당 강사를 선택해 주세요.'); // [NEW] Validation
 
     setIsProcessing(true);
     try {
@@ -123,10 +133,10 @@ const CareSessionPage: React.FC = () => {
         originalPrice: Math.floor(originalPrice),
         discountRate: discountRate,
         finalPrice: finalAmount,
-        noteSummary: notes.summary,
-        noteDetails: '', // [REMOVED] Private notes are now separate
-        noteRecommendation: notes.recommendation,
-        noteFutureRef: ''
+        noteSummary: notes.noteSummary,
+        noteDetails: '', // [FIX] User Request: Remove Secret Note from Admin Page,
+        settledBy: currentAdmin?.name || 'Admin',
+        instructorName: managers.find(m => m.id === selectedManagerId)?.name || ''
       });
       // 예약 상태 변경
       try {
@@ -135,9 +145,16 @@ const CareSessionPage: React.FC = () => {
         console.warn('Reservation status update failed:', err);
       }
 
-      // 2단계: 완료 알림 및 페이지 이동
-      alert(`[정산 완료] ${finalAmount.toLocaleString()}원이 차감되었습니다.\n회원 앱으로 서명 요청 알림을 발송했습니다.`);
-      navigate(`/admin/members/${member!.id}`);
+      // 2.단계: 완료 알림 및 페이지 이동
+      const isInstructor = currentAdmin?.role === 'INSTRUCTOR';
+      if (isInstructor) {
+        alert('이용 완료 처리가 되었습니다.\n회원 앱으로 서명 요청 알림을 발송했습니다.');
+      } else {
+        alert(`[정산 완료] ${finalAmount.toLocaleString()}원이 차감되었습니다.\n회원 앱으로 서명 요청 알림을 발송했습니다.`);
+      }
+
+      // [FIX] Redirect to Member List instead of Report Page
+      navigate(`/admin/members`);
 
     } catch (e: any) {
       console.error('Care Session Completion Error:', e);
@@ -167,34 +184,29 @@ const CareSessionPage: React.FC = () => {
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Hannam Premium Membership</p>
           </div>
           <div className="space-y-4 pt-8 border-t border-slate-50">
-            {memberships.map(ms => {
-              // Calculate Remaining based on engine result (already calculated in hook)
-              // Just strictly display calculatedRemaining
-              const remaining = Math.floor(ms.calculatedRemaining);
-              const productName = ms.productName;
-              const discount = Math.floor(msProducts.find(x => x.id === ms.productId || x.name === ms.productName)?.defaultDiscountRate ?? ms.defaultDiscountRate ?? 0);
+            {currentAdmin?.role !== 'INSTRUCTOR' ? (
+              memberships.map(ms => {
+                const remaining = Math.floor(ms.calculatedRemaining);
+                const productName = ms.productName;
+                const discount = Math.floor(msProducts.find(x => x.id === ms.productId || x.name === ms.productName)?.defaultDiscountRate ?? ms.defaultDiscountRate ?? 0);
 
-              return (
-                <label key={ms.id} className={`flex items-center justify-between p-5 rounded-2xl border cursor-pointer transition-all duration-300 ${selectedMembershipId === ms.id ? 'bg-[#1A3C34] text-white border-[#1A3C34] shadow-lg scale-[1.02]' : 'bg-[#F9F9F7] text-slate-400 border-transparent hover:border-slate-200'}`}>
-                  <input type="radio" checked={selectedMembershipId === ms.id} onChange={() => {
-                    setSelectedMembershipId(ms.id);
-                  }} className="hidden" />
-                  <div className="flex flex-col">
-                    <span className="text-[11px] font-bold">{productName}</span>
-                    <span className="text-[8px] opacity-60 font-medium uppercase tracking-tighter mt-0.5">Available Balance</span>
-                    {selectedMembershipId === ms.id && (
-                      <div className="mt-2 inline-flex px-2 py-0.5 bg-white/20 rounded-full items-center gap-1.5 animate-in fade-in duration-500">
-                        <span className="w-1 h-1 rounded-full bg-emerald-400"></span>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-[#A58E6F]">
-                          DC: {discount}%
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[13px] font-black tabular-nums">₩{remaining.toLocaleString()}</span>
-                </label>
-              );
-            })}
+                return (
+                  <label key={ms.id} className={`flex items-center justify-between p-5 rounded-2xl border cursor-pointer transition-all duration-300 ${selectedMembershipId === ms.id ? 'bg-[#1A3C34] text-white border-[#1A3C34] shadow-lg scale-[1.02]' : 'bg-[#F9F9F7] text-slate-400 border-transparent hover:border-slate-200'}`}>
+                    <input type="radio" checked={selectedMembershipId === ms.id} onChange={() => setSelectedMembershipId(ms.id)} className="hidden" />
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold">{productName}</span>
+                      <span className="text-[8px] opacity-60 font-medium uppercase tracking-tighter mt-0.5">Available Balance</span>
+                    </div>
+                    <span className="text-[13px] font-black tabular-nums">₩{remaining.toLocaleString()}</span>
+                  </label>
+                );
+              })
+            ) : (
+              <div className="p-10 text-center bg-[#F9F9F7] rounded-3xl border border-dashed border-slate-200">
+                <p className="text-[10px] text-slate-300 font-bold uppercase tracking-[0.2em]">Active Membership Verified</p>
+                <p className="text-xs text-slate-400 mt-2 font-medium">관리자 정책에 따라<br />잔액 정보가 비공개 처리되었습니다.</p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -230,7 +242,7 @@ const CareSessionPage: React.FC = () => {
             </div>
 
 
-            <div className="space-y-1.5 col-span-2">
+            <div className={`space-y-1.5 col-span-2 ${currentAdmin?.role === 'INSTRUCTOR' ? 'hidden' : ''}`}>
               <label className="text-[9px] font-bold text-[#A58E6F] uppercase tracking-widest ml-2">Calculation</label>
               <div className="bg-[#1A3C34] p-5 rounded-[20px] text-white space-y-3 shadow-md relative overflow-hidden group border border-white/10">
                 <div className="flex justify-between items-center text-[10px] font-medium opacity-70">
@@ -275,16 +287,17 @@ const CareSessionPage: React.FC = () => {
 
           <div className="space-y-4 pt-4 border-t border-slate-50">
             <div className="grid grid-cols-2 gap-6">
-
               <div className="space-y-1.5">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">Summary (Visible)</label>
-                <textarea className="w-full px-4 py-3 bg-[#F9F9F7] rounded-[20px] h-20 outline-none border border-transparent focus:border-[#1A3C34] focus:bg-white transition-all text-xs leading-relaxed font-medium resize-none" placeholder="고객에게 보여질 요약..." value={notes.summary} onChange={e => setNotes({ ...notes, summary: e.target.value })} />
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">Summary (회원 공개 요약)</label>
+                <textarea className="w-full px-4 py-3 bg-[#F9F9F7] rounded-[20px] h-20 outline-none border border-transparent focus:border-[#1A3C34] focus:bg-white transition-all text-xs leading-relaxed font-medium resize-none" placeholder="고객에게 보여질 요약..." value={notes.noteSummary} onChange={e => setNotes({ ...notes, noteSummary: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">Future Recs</label>
-                <textarea className="w-full px-4 py-3 bg-[#F9F9F7] rounded-[20px] h-20 outline-none border border-transparent focus:border-[#1A3C34] focus:bg-white transition-all text-xs leading-relaxed font-medium resize-none" placeholder="추천 프로그램..." value={notes.recommendation} onChange={e => setNotes({ ...notes, recommendation: e.target.value })} />
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-2">Future Recs (회원 공개 추천)</label>
+                <textarea className="w-full px-4 py-3 bg-[#F9F9F7] rounded-[20px] h-20 outline-none border border-transparent focus:border-[#1A3C34] focus:bg-white transition-all text-xs leading-relaxed font-medium resize-none" placeholder="추천 프로그램..." value={notes.noteRecommendation} onChange={e => setNotes({ ...notes, noteRecommendation: e.target.value })} />
               </div>
             </div>
+
+            {/* [FIX] Secret Note Removed by User Request */}
           </div>
 
           <button onClick={handleCompleteSession} disabled={isProcessing} className="w-full py-4 bg-[#1A3C34] text-white rounded-[24px] font-bold uppercase text-[11px] tracking-[0.2em] shadow-lg active:scale-[0.98] transition-all hover:bg-[#1A4C40] flex items-center justify-center gap-2">

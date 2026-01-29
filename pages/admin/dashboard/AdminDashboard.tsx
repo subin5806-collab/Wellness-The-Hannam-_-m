@@ -81,7 +81,7 @@ const AdminDashboard: React.FC = () => {
   const getProgramName = (id: string) => programs.find(p => p.id === id)?.name || '알 수 없음';
   const getManagerName = (id?: string, fallbackName?: string) => {
     if (!id) return fallbackName || '미지정';
-    return managers.find(m => m.id === id)?.name || fallbackName || '미지정';
+    return managers.find(m => m.id === id)?.name || fallbackName || '강사 미지정';
   };
 
   const statusMap: any = {
@@ -237,8 +237,21 @@ const AdminDashboard: React.FC = () => {
                     className={`transition-all duration-300 group ${res.status === 'RESERVED' ? 'hover:bg-emerald-50/50 cursor-pointer' : 'hover:bg-slate-50/70'}`}
                     onClick={() => {
                       if (res.status === 'RESERVED') {
-                        const path = `/admin/care/${res.memberId}?resId=${res.id}&progId=${res.programId}`;
-                        window.location.hash = `#${path}`; // Using hash as we are in HashRouter
+                        const saved = localStorage.getItem('hannam_auth_session');
+                        const auth = saved ? JSON.parse(saved) : null;
+
+                        // We need a quick way to check role if not pre-provided in row
+                        // Let's assume the session has the role or we check it.
+                        // For faster perf, we check if they are in Instructor Portal context.
+                        // But AdminDashboard is shared sometimes? 
+                        // Let's just follow the logic: Admin -> CareSession, Instructor -> InstructorRecordingPage
+
+                        const isInstructor = auth?.role === 'INSTRUCTOR';
+                        const path = isInstructor
+                          ? `/admin/care-record-edit/${res.id}`
+                          : `/admin/care/${res.memberId}?resId=${res.id}&progId=${res.programId}`;
+
+                        window.location.hash = `#${path}`;
                       }
                     }}
                   >

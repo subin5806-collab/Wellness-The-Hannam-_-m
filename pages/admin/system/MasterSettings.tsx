@@ -543,7 +543,7 @@ const MasterSettings: React.FC = () => {
         {[
           { id: 'MEMBERSHIP', label: '멤버십 관리' },
           { id: 'CARE_PROGRAM', label: '케어 프로그램' },
-          { id: 'MANAGER', label: '관리사 배정' },
+          { id: 'MANAGER', label: '강사 관리' },
           { id: 'ALIMTALK', label: '알림톡 센터' },
           { id: 'SECURITY', label: '보안 정책' },
           { id: 'DATA_HUB', label: '데이터 허브' }
@@ -848,21 +848,76 @@ const MasterSettings: React.FC = () => {
         {activeTab === 'MANAGER' && (
           <div className="grid grid-cols-12 gap-12 animate-in slide-in-from-right-4">
             <form onSubmit={handleManagerSubmit} className="col-span-4 bg-white p-10 rounded-[48px] border luxury-card space-y-6 h-fit">
-              <h4 className="text-xl font-bold text-[#2F3A32] font-serif italic mb-4">관리사 설정</h4>
-              <input required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold" placeholder="관리사 성함" value={newManager.name} onChange={e => setNewManager({ ...newManager, name: e.target.value })} />
-              <input required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold" placeholder="연락처" value={newManager.phone} onChange={e => setNewManager({ ...newManager, phone: e.target.value })} />
-              <button type="submit" disabled={isProcessing} className="w-full py-5 bg-[#2F3A32] text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-xl">관리사 저장</button>
+              <h4 className="text-xl font-bold text-[#2F3A32] font-serif italic mb-4">강사(Instructor) 계정 관리</h4>
+              <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                강사 등록 시 <strong>로그인 계정이 자동 생성</strong>됩니다.<br />
+                - 아이디: 휴대폰 번호<br />
+                - 초기 비밀번호: 휴대폰 뒤 4자리
+              </p>
+              <input required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold" placeholder="강사 성함" value={newManager.name} onChange={e => setNewManager({ ...newManager, name: e.target.value })} />
+              <input required className="w-full px-6 py-4 bg-slate-50 border rounded-2xl outline-none font-bold" placeholder="연락처 (- 없이 입력)" value={newManager.phone} onChange={e => setNewManager({ ...newManager, phone: e.target.value })} />
+              <div className="flex gap-2">
+                {editingId && <button type="button" onClick={resetForms} className="w-1/3 py-5 bg-slate-100 text-slate-500 rounded-2xl font-bold uppercase text-[11px] tracking-widest">취소</button>}
+                <button type="submit" disabled={isProcessing} className="flex-1 py-5 bg-[#2F3A32] text-white rounded-2xl font-bold uppercase text-[11px] tracking-widest shadow-xl">
+                  {editingId ? '정보 수정' : '강사 등록'}
+                </button>
+              </div>
             </form>
             <div className="col-span-8 space-y-4">
               {managers.map(m => (
-                <div key={m.id} className="bg-white p-8 rounded-[32px] border luxury-shadow flex justify-between items-center">
-                  <div><h5 className="font-bold text-[#2F3A32] text-lg">{m.name}</h5><p className="text-sm text-slate-400 mt-1">{m.phone}</p></div>
+                <div key={m.id} className={`bg-white p-8 rounded-[32px] border luxury-shadow flex justify-between items-center ${m.isActive === false ? 'opacity-60 grayscale' : ''}`}>
+                  <div className="flex items-center gap-6">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-sm ${m.isActive !== false ? 'bg-[#2F3A32] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                      {m.isActive !== false ? '👩‍🏫' : '💤'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <h5 className="font-bold text-[#2F3A32] text-lg">{m.name}</h5>
+                        {m.isActive === false && <span className="px-2 py-0.5 bg-slate-100 text-slate-400 text-[10px] font-bold rounded">비활동</span>}
+                        {m.isActive !== false && <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded">활동중</span>}
+                      </div>
+                      <p className="text-sm text-slate-400 mt-1 font-bold tracking-wide">{m.phone}</p>
+                    </div>
+                  </div>
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditingId(m.id); setNewManager(m); }} className="px-5 py-2.5 bg-slate-50 text-[10px] font-bold rounded-xl">수정</button>
-                    <button onClick={() => handleDeleteItem(m.id, 'MANAGER')} className="px-5 py-2.5 bg-rose-50 text-rose-400 text-[10px] font-bold rounded-xl">삭제</button>
+                    <button onClick={() => { setEditingId(m.id); setNewManager(m); }} className="px-5 py-2.5 bg-slate-50 text-[#2F3A32] text-[10px] font-bold rounded-xl hover:bg-slate-100 transition-colors">수정</button>
+                    {m.isActive !== false ? (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`${m.name} 강사님을 비활성화하시겠습니까?`)) return;
+                          await db.master.managers.update(m.id, { isActive: false });
+                          loadData();
+                        }}
+                        className="px-5 py-2.5 bg-slate-50 text-slate-400 text-[10px] font-bold rounded-xl hover:bg-slate-100 transition-colors"
+                      >
+                        비활성화
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          await db.master.managers.update(m.id, { isActive: true });
+                          loadData();
+                        }}
+                        className="px-5 py-2.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-xl hover:bg-emerald-100 transition-colors"
+                      >
+                        활성화
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteItem(m.id, 'MANAGER')}
+                      className="px-5 py-2.5 bg-rose-50 text-rose-500 text-[10px] font-bold rounded-xl hover:bg-rose-100 transition-colors"
+                      title="완전 삭제 (모든 연동 계정 및 정보 삭제)"
+                    >
+                      삭제
+                    </button>
                   </div>
                 </div>
               ))}
+              {managers.length === 0 && (
+                <div className="py-20 text-center text-slate-300 font-bold italic border-2 border-dashed border-slate-100 rounded-[40px]">
+                  등록된 강사가 없습니다. 좌측 폼을 통해 첫 강사를 등록해주세요.
+                </div>
+              )}
             </div>
           </div>
         )}

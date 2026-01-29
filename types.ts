@@ -7,10 +7,11 @@ export interface Admin {
   email: string;
   password?: string;
   name: string;
-  phone: string;
-  role: 'SUPER' | 'STAFF';
+  phone?: string; // [NEW] Instructor Login ID
+  role: 'SUPER' | 'STAFF' | 'INSTRUCTOR';
   isActive: boolean;
   isDeleted: boolean;
+  lastLoginAt?: string; // [NEW] Audit Log
 }
 
 export interface Member {
@@ -54,6 +55,8 @@ export interface Manager {
   name: string;
   phone: string;
   adminMemo: string;
+  isActive?: boolean; // [NEW] Soft Delete Status
+  linkedAdminId?: string; // [NEW] Link to Login Account
   isDeleted: boolean;
   createdAt: string;
 }
@@ -139,13 +142,16 @@ export interface CareRecord {
   finalPrice: number;
   noteSummary: string;
   noteDetails: string;
-  noteFutureRef: string;
   noteRecommendation: string;
-  amountDeducted?: number;   // 추가: 정산 차감액
-  signImage?: string;        // 추가: 서명 이미지
+  noteAuthorName?: string;
+  noteUpdatedAt?: string;
+  settledBy?: string;
+  instructorName?: string;
+  amountDeducted?: number;
+  signImage?: string;
   signatureStatus: 'pending' | 'signed' | 'completed';
   signatureData?: string;
-  signedAt?: string; // 추가: 서명 일시
+  signedAt?: string;
   date: string;
   createdAt: string;
   privateNote?: AdminPrivateNote; // 관리자 전용 (Member API에서는 절대 반환하지 않음)
@@ -170,6 +176,11 @@ export interface Reservation {
   adminId?: string; // [FIX] Fallback for legacy data
   adminName?: string; // [FIX] Fallback for legacy data
   status: 'RESERVED' | 'COMPLETED' | 'CANCELLED';
+  noteSummary?: string;
+  noteDetails?: string;
+  noteRecommendation?: string;
+  noteAuthorName?: string;
+  noteUpdatedAt?: string;
   createdAt: string;
 }
 

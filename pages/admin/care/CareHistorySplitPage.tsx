@@ -57,7 +57,7 @@ const CareHistorySplitPage: React.FC = () => {
                         {history.map(h => {
                             const isActive = h.id === recordId;
                             const progName = programs.find(p => p.id === h.programId)?.name || '프로그램 정보 없음';
-                            const mgrName = managers.find(m => m.id === h.managerId)?.name || '미지정';
+                            const mgrName = managers.find(m => m.id === h.managerId)?.name || '강사 미지정';
 
                             return (
                                 <div
@@ -72,7 +72,7 @@ const CareHistorySplitPage: React.FC = () => {
                                                 {progName}
                                             </div>
                                             <div className={`text-[9px] font-medium mt-0.5 ${isActive ? 'text-white/60' : 'text-slate-400'}`}>
-                                                담당 관리사: {mgrName}
+                                                담당 강사: {mgrName}
                                             </div>
                                         </div>
                                         <div className={`text-[13px] font-black ${isActive ? 'text-emerald-400' : 'text-slate-800'}`}>

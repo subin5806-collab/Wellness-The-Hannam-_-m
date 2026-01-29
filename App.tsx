@@ -13,6 +13,10 @@ import MasterSettings from './pages/admin/system/MasterSettings';
 import CareRecordManagement from './pages/admin/care/CareRecordManagement';
 import CareHistorySplitPage from './pages/admin/care/CareHistorySplitPage';
 import NotificationCenter from './pages/admin/system/NotificationCenter';
+import AccountManagement from './pages/admin/system/AccountManagement';
+import WellnessHistoryReportPage from './pages/admin/care/WellnessHistoryReportPage';
+import InstructorRecordingPage from './pages/admin/care/InstructorRecordingPage';
+import InstructorDashboard from './pages/instructor/InstructorDashboard';
 import PWAInstallBanner from './components/PWAInstallBanner';
 import { UpdatePrompt } from './components/common/UpdatePrompt';
 
@@ -82,6 +86,16 @@ const App: React.FC = () => {
       <Routes>
         <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
 
+        <Route path="/instructor/*" element={
+          auth.type === 'admin' ? (
+            <Routes>
+              <Route index element={<InstructorDashboard />} />
+              <Route path="record/:resId" element={<InstructorRecordingPage />} />
+              <Route path="*" element={<Navigate to="/instructor" />} />
+            </Routes>
+          ) : <Navigate to="/login" />
+        } />
+
         <Route
           path="/admin/*"
           element={
@@ -96,7 +110,10 @@ const App: React.FC = () => {
                   <Route path="notices" element={<NoticeManagement />} />
                   <Route path="notification-center" element={<NotificationCenter />} />
                   <Route path="care/:memberId" element={<CareSessionPage />} />
+                  <Route path="care-report/:memberId" element={<WellnessHistoryReportPage />} />
+                  {/* [MOVED] care-record-edit moved to /instructor/record */}
                   <Route path="settings" element={<MasterSettings />} />
+                  <Route path="accounts" element={<AccountManagement />} />
                   <Route path="*" element={<Navigate to="/admin" />} />
                 </Routes>
               </AdminLayout>

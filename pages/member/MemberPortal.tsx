@@ -99,7 +99,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
       const [mInfo, allMs, careList, resList, allProgs, fetchedNotices, allNotis, allProducts] = await Promise.all([
         db.members.getPublicProfile(memberId),
         db.memberships.getAllByMemberId(memberId),
-        db.careRecords.getByMemberId(memberId),
+        db.careRecords.getHistoryForMember(memberId),
         db.reservations.getByMemberId(memberId),
         db.master.programs.getAll(),
         db.notices.getActiveNotices(),

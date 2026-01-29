@@ -36,6 +36,7 @@ const PrivateNoteEditor: React.FC<Props> = ({
     // 3. Load Private Note on ID change
     useEffect(() => {
         loadData();
+        checkAdmin();
     }, [careRecordId]);
 
     // 4. Sync props to state when switching records (only if not editing)
@@ -45,6 +46,19 @@ const PrivateNoteEditor: React.FC<Props> = ({
             setRecommendation(initialRecommendation || '');
         }
     }, [careRecordId, initialSummary, initialRecommendation]);
+
+    const [currentAdmin, setCurrentAdmin] = useState<{ name: string, phone: string } | null>(null);
+
+    const checkAdmin = async () => {
+        const saved = localStorage.getItem('hannam_auth_session');
+        if (saved) {
+            const auth = JSON.parse(saved);
+            if (auth.email) {
+                const admin = await db.admins.getByEmail(auth.email);
+                setCurrentAdmin({ name: admin.name, phone: admin.phone || '-' });
+            }
+        }
+    };
 
     const loadData = async () => {
         setIsLoading(true);
@@ -79,11 +93,19 @@ const PrivateNoteEditor: React.FC<Props> = ({
     };
 
     const handleSavePrivate = async () => {
+        if (!currentAdmin) return alert('관리자 정보를 불러오지 못했습니다.');
+
+        // [IMMUTABLE STAMP LOGIC]
+        const timestamp = new Date().toLocaleString('ko-KR', { hour12: false });
+        const stamp = `\n\n[Recorded by ${currentAdmin.name}(${currentAdmin.phone}) on ${timestamp}]`;
+        const finalContent = privateContent.trim() + stamp;
+
         setIsSavingPrivate(true);
         try {
-            const savedNote = await db.adminNotes.upsert(careRecordId, privateContent);
+            const savedNote = await db.adminNotes.upsert(careRecordId, finalContent);
             setNoteData(savedNote);
-            alert('관리자 비공개 노트가 저장되었습니다.');
+            setPrivateContent(savedNote.content); // Update with stamped content
+            alert('관리자 비공개 노트가 저장되었습니다. (작성자 서명 포함)');
             if (onUpdate) onUpdate();
         } catch (e: any) {
             alert(`저장 실패: ${e.message}`);

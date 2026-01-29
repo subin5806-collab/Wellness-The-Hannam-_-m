@@ -112,9 +112,27 @@ export const db = {
       const { data } = await supabase.from('hannam_admins').select('*').eq('email', email).maybeSingle();
       return transformKeys(data, 'toCamel') as Admin & { secondaryPassword?: string };
     },
+    getByPhone: async (phone: string) => {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      const { data } = await supabase.from('hannam_admins').select('*').eq('phone', cleanPhone).maybeSingle();
+      return transformKeys(data, 'toCamel') as Admin;
+    },
     getAll: async () => {
-      const { data } = await supabase.from('hannam_admins').select('*').eq('is_deleted', false);
+      const { data, error } = await supabase.from('hannam_admins').select('*').eq('is_deleted', false);
+      if (error && error.code === 'PGRST204') {
+        const { data: fallback } = await supabase.from('hannam_admins').select('*');
+        return transformKeys(fallback || [], 'toCamel') as Admin[];
+      }
       return transformKeys(data || [], 'toCamel') as Admin[];
+    },
+    update: async (id: string, updates: Partial<Admin>) => {
+      const snakeUpdates = transformKeys(updates, 'toSnake');
+      const { error } = await supabase.from('hannam_admins').update(snakeUpdates).eq('id', id);
+      if (error) throw error;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase.from('hannam_admins').delete().eq('id', id);
+      if (error) throw error;
     },
     updateSecondaryPassword: async (email: string, password: string) => {
       const hashedPassword = await hashPassword(password);
@@ -123,7 +141,99 @@ export const db = {
     updateLoginPassword: async (email: string, password: string) => {
       const hashedPassword = await hashPassword(password);
       await supabase.from('hannam_admins').update({ password: hashedPassword }).eq('email', email);
-    }
+    },
+    updateRole: async (email: string, role: string) => {
+      const { error } = await supabase.from('hannam_admins').update({ role }).eq('email', email);
+      if (error) throw error;
+    },
+    resetInstructorPassword: async (adminId: string, phone: string) => {
+      const last4 = phone.replace(/[^0-9]/g, '').slice(-4);
+      const hashedPassword = await hashPassword(last4);
+      const { error } = await supabase.from('hannam_admins').update({ password: hashedPassword }).eq('id', adminId);
+      if (error) throw error;
+    },
+    bulkSyncInstructors: async () => {
+      // 1. Find unlinked managers
+      // [ROBUSTNESS] Handle cases where is_deleted might not exist yet
+      let { data: unlinked, error: queryErr } = await supabase.from('hannam_managers')
+        .select('*')
+        .is('linked_admin_id', null)
+        .eq('is_deleted', false);
+
+      if (queryErr && queryErr.code === 'PGRST204') {
+        const { data: fallback, error: fallbackErr } = await supabase.from('hannam_managers')
+          .select('*')
+          .is('linked_admin_id', null);
+        if (fallbackErr) throw fallbackErr;
+        unlinked = fallback;
+      } else if (queryErr) {
+        throw queryErr;
+      }
+
+      if (!unlinked || unlinked.length === 0) return 0;
+
+      let count = 0;
+      for (const m of unlinked) {
+        const phone = m.phone.replace(/[^0-9]/g, '');
+        const email = `${phone}@instructor.thehannam.com`;
+        const adminId = `DIR_${m.id}`;
+        const hashedPassword = await hashPassword(phone.slice(-4));
+
+        // Create Admin
+        // [FUNDAMENTAL FIX] Schema-agnostic insertion.
+        // We only provide core identity fields. Metadata fields (is_active, is_deleted, created_at)
+        // are omitted to prevent 400 errors if the user hasn't run the migration yet.
+        const adminPayload: any = {
+          id: adminId,
+          name: m.name,
+          phone: phone,
+          email: email,
+          role: 'INSTRUCTOR',
+          password: hashedPassword
+        };
+
+        const { error: adminErr } = await supabase.from('hannam_admins').upsert(adminPayload);
+
+        if (adminErr) {
+          console.error(`[Sync] Failed to create admin for ${m.name}:`, adminErr);
+          // If the failure is STILL about missing columns (unlikely now), we proceed to the next to not block the whole loop.
+          continue;
+        }
+
+        // Link Manager
+        const { error: linkErr } = await supabase.from('hannam_managers').update({ linked_admin_id: adminId }).eq('id', m.id);
+        if (!linkErr) count++;
+      }
+      return count;
+    },
+    authByPhoneDirect: async (phone: string, rawPassword: string) => {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      const { data } = await supabase.from('hannam_admins')
+        .select('*')
+        .eq('phone', cleanPhone)
+        .maybeSingle();
+
+      if (!data) return null;
+
+      const admin = transformKeys(data, 'toCamel') as Admin & { password?: string };
+
+      // [SECURITY] Block Inactive Accounts
+      if (admin.isActive === false) {
+        throw new Error('비활성화된 계정입니다. 관리자에게 문의하세요.');
+      }
+
+      // [SECURITY] Master(SUPER) is NOT allowed via this direct DB path to protect auth.users account
+      if (admin.role !== 'INSTRUCTOR' && admin.role !== 'STAFF') {
+        throw new Error('관리자 전용(Email) 로그인을 이용해주세요.');
+      }
+
+      const hashedInput = await hashPassword(rawPassword);
+      if (admin.password === hashedInput) {
+        await supabase.from('hannam_admins').update({ last_login_at: new Date().toISOString() }).eq('id', data.id);
+        return admin;
+      }
+      return null;
+    },
   },
   members: {
     getAll: async () => {
@@ -316,12 +426,33 @@ export const db = {
       return transformKeys(data || [], 'toCamel') as CareRecord[];
     },
     getByMemberId: async (memberId: string) => {
-      // [FIX] Explicitly select all columns including notes and signature to ensure they are returned
+      // [ADMIN] Explicitly select all columns including notes and signature
       const { data } = await supabase.from('hannam_care_records')
         .select('*, note_details, note_summary, signature_data, signature_status')
         .eq('member_id', memberId)
         .order('date', { ascending: false });
       return transformKeys(data || [], 'toCamel') as CareRecord[];
+    },
+    getHistoryForMember: async (memberId: string) => {
+      // [SECURITY] 원천 차단: Secret Note (note_details)는 절대 조회하지 않음
+      const { data } = await supabase.from('hannam_care_records')
+        .select('id, member_id, membership_id, program_id, manager_id, date, note_summary, note_recommendation, note_future_ref, signature_status, balance_after, final_price, created_at')
+        .eq('member_id', memberId)
+        .order('date', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as CareRecord[];
+    },
+    getHistoryForInstructor: async (memberId: string) => {
+      // [SECURITY] Exclude financial fields AND secret notes from general timeline
+      const { data } = await supabase.from('hannam_care_records')
+        .select('id, member_id, program_id, manager_id, date, note_summary, note_recommendation, signature_status, created_at')
+        .eq('member_id', memberId)
+        .order('date', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as CareRecord[];
+    },
+    getById: async (id: string) => {
+      const { data, error } = await supabase.from('hannam_care_records').select('*, note_details').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return transformKeys(data, 'toCamel') as CareRecord;
     },
     getPendingSignatureCount: async () => {
       const { count } = await supabase.from('hannam_care_records').select('*', { count: 'exact', head: true }).eq('signature_status', 'pending');
@@ -514,9 +645,29 @@ export const db = {
       const { error } = await supabase.from('hannam_reservations').delete().eq('id', id);
       if (error) throw error;
     },
+    getHistoryForMember: async (memberId: string) => {
+      const { data } = await supabase.from('hannam_reservations')
+        .select('*')
+        .eq('member_id', memberId)
+        .order('date', { ascending: true });
+      return transformKeys(data || [], 'toCamel') as Reservation[];
+    },
     getByMemberId: async (memberId: string) => {
       const { data } = await supabase.from('hannam_reservations').select('*').eq('member_id', memberId).order('date', { ascending: true });
       return transformKeys(data || [], 'toCamel') as Reservation[];
+    },
+    saveNotes: async (id: string, notes: any) => {
+      const { data, error } = await supabase.from('hannam_reservations')
+        .update(transformKeys(notes, 'toSnake'))
+        .eq('id', id)
+        .select();
+      if (error) throw error;
+      return transformKeys(data?.[0], 'toCamel');
+    },
+    getById: async (id: string) => {
+      const { data, error } = await supabase.from('hannam_reservations').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return transformKeys(data, 'toCamel') as Reservation;
     },
     getByDateRange: async (start: string, end: string) => {
       const { data, error } = await supabase.from('hannam_reservations')
@@ -620,27 +771,83 @@ export const db = {
     },
     managers: {
       getAll: async () => {
-        const { data } = await supabase.from('hannam_managers').select('*').eq('is_deleted', false);
+        // [SYNC FIX] Get all managers. Filtering will be handled by SQL script columns.
+        const { data, error } = await supabase.from('hannam_managers')
+          .select('*')
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false });
+
+        if (error && error.code === 'PGRST204') { // Column not found fallback
+          const { data: fallback } = await supabase.from('hannam_managers').select('*').order('created_at', { ascending: false });
+          return transformKeys(fallback || [], 'toCamel') as Manager[];
+        }
         return transformKeys(data || [], 'toCamel') as Manager[];
       },
-      add: async (mgr: any) => {
-        const { data, error } = await supabase.from('hannam_managers').insert([transformKeys({
-          id: `MGR-${Date.now()}`,
-          ...mgr,
-          isDeleted: false,
-          createdAt: new Date().toISOString()
-        }, 'toSnake')]).select();
+      getByPhone: async (phone: string) => {
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const { data } = await supabase.from('hannam_managers').select('*').eq('phone', cleanPhone).maybeSingle();
+        return data ? transformKeys(data, 'toCamel') as Manager : null;
+      },
+      add: async (manager: Partial<Manager>) => {
+        // [REGISTRATION FIX] Use DB Default (UUID) or generate one.
+        // To ensure we have an ID for the UI immediately without refetching if possible, we generate UUID v4.
+        // But strict adherence to "DEFAULT gen_random_uuid()" implies we should let DB handle it or align with it.
+        // Safest: Generate UUID v4 here. It is compatible with UUID column type.
+        // The error 'id is null' likely came from a mismatch or logic that passed null.
+        const mgrId = crypto.randomUUID();
+        const cleanManager = {
+          id: mgrId,
+          name: manager.name,
+          phone: manager.phone?.replace(/[^0-9]/g, ''),
+          admin_memo: manager.adminMemo,
+          is_active: true,
+          is_deleted: false,
+          linked_admin_id: null, // [REGISTRATION FIX] Human first, account later
+        };
+
+        const { data, error } = await supabase.from('hannam_managers').insert(cleanManager).select().single();
         if (error) throw error;
-        return transformKeys(data?.[0], 'toCamel');
+
+        // Optional: Attempt immediate sync if master requested it via separate logic 
+        // (but we'll keep it simple for now as requested: human first)
+        return transformKeys(data, 'toCamel') as Manager;
       },
       update: async (id: string, updates: any) => {
         const { data, error } = await supabase.from('hannam_managers').update(transformKeys(updates, 'toSnake')).eq('id', id).select();
         if (error) throw error;
-        return transformKeys(data?.[0], 'toCamel');
+
+        // Sync with Admin Account if linked
+        const mgr = transformKeys(data?.[0], 'toCamel') as Manager;
+        if (mgr.linkedAdminId) {
+          const adminUpdates: any = {};
+          if (updates.name) adminUpdates.name = updates.name;
+          if (updates.phone) {
+            const cleanPhone = updates.phone.replace(/[^0-9]/g, '');
+            adminUpdates.phone = cleanPhone;
+            adminUpdates.email = `${cleanPhone}@instructor.thehannam.com`;
+          }
+          if (Object.keys(adminUpdates).length > 0) {
+            await supabase.from('hannam_admins').update(transformKeys(adminUpdates, 'toSnake')).eq('id', mgr.linkedAdminId);
+          }
+        }
+        return mgr;
       },
       delete: async (id: string) => {
-        const { error } = await supabase.from('hannam_managers').update({ is_deleted: true }).eq('id', id);
+        // [USER REQUEST] CASCADE DELETION
+        // 1. Fetch linked admin id
+        const { data } = await supabase.from('hannam_managers').select('linked_admin_id').eq('id', id).maybeSingle();
+
+        // 2. Clear link in reservations (Handled here instead of SQL for maximum safety/control)
+        await supabase.from('hannam_reservations').update({ manager_id: null }).eq('manager_id', id);
+
+        // 3. Delete Manager
+        const { error } = await supabase.from('hannam_managers').delete().eq('id', id);
         if (error) throw error;
+
+        // 3. Delete Associated Admin if exists
+        if (data?.linked_admin_id) {
+          await supabase.from('hannam_admins').delete().eq('id', data.linked_admin_id);
+        }
       }
     },
     membershipProducts: {
@@ -763,7 +970,8 @@ export const db = {
       try {
         // 1. Test Read
         const { data: readData, error: readError } = await supabase.from('hannam_membership_products').select('count').limit(1).single();
-        if (readError && readError.code !== 'PGRST116') throw new Error(`Read Check Failed: ${readError.message}`);
+        if (readError && readError.code === 'PGRST116') { /* No rows found is okay for count */ }
+        else if (readError) throw new Error(`Read Check Failed: ${readError.message}`);
 
         // 2. Test Write (Audit Log)
         const testId = `TEST-${Date.now()}`;
@@ -1023,7 +1231,8 @@ export const db = {
         if (error.code === '42P01') return [];
         throw error;
       };
-      if (!memberId) return transformKeys(notices || [], 'toCamel');
+      // [FIX] If Admin (UUID), skip member personalization
+      if (!memberId || memberId.length > 20) return transformKeys(notices || [], 'toCamel');
 
       const { data: member } = await supabase.from('hannam_members').select('confirmed_notice_ids').eq('id', memberId).single();
       const confirmed = new Set(member?.confirmed_notice_ids || []);
@@ -1050,10 +1259,12 @@ export const db = {
     },
 
     add: async (notice: Partial<Notice>) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('hannam_notices')
-        .insert([transformKeys(notice, 'toSnake')]);
+        .insert([transformKeys(notice, 'toSnake')])
+        .select();
       if (error) throw error;
+      return transformKeys(data?.[0], 'toCamel') as Notice;
     },
 
     delete: async (id: string) => {
@@ -1087,14 +1298,28 @@ export const db = {
   },
   notifications: {
     getByMemberId: async (memberId: string) => {
+      const { data } = await supabase.from('hannam_notifications')
+        .select('*')
+        .eq('member_id', memberId)
+        .order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as Notification[];
+    },
+    getAll: async (memberId?: string) => {
       // [SECURITY] Prefer user_id if available, fallback to member_id
+      // [FIX] Admin saves notifications with member_id (Phone). Even if user is logged in (has UUID),
+      // we must check member_id to find those admin-sent messages.
       const { data: { user } } = await supabase.auth.getUser();
       let query = supabase.from('hannam_notifications').select('*').order('created_at', { ascending: false });
 
-      if (user) {
+      // Logic: If we have a user, we technically can check both.
+      // But since we unified to Phone ID = Member ID, querying by memberId is safest/most consistent.
+      // RLS (modified) allows viewing via member_id matching JWT phone.
+      if (memberId) {
+        query = query.eq('member_id', memberId);
+      } else if (user) {
         query = query.eq('user_id', user.id);
       } else {
-        query = query.eq('member_id', memberId);
+        return [];
       }
 
       const { data } = await query;
@@ -1125,9 +1350,38 @@ export const db = {
       const { data, error } = await supabase.from('hannam_notifications').insert([payload]).select();
 
       if (error) throw error;
+
+      // [REAL PUSH] Immediately trigger Firebase Push via Vercel API
+      // This guarantees "Real Time" delivery without relying on background triggers
+      (async () => {
+        try {
+          const tokens = await db.fcmTokens.getByMemberId(noti.memberId);
+          if (tokens && tokens.length > 0) {
+            console.log(`[Push] Triggering Real Push for ${noti.memberId} (${tokens.length} devices)...`);
+            fetch('/api/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: noti.title,
+                body: noti.content,
+                tokens: tokens, // Array of FCM tokens
+                data: { url: '/notifications' } // Deep link
+              })
+            }).then(res => res.json()).then(res => console.log('[Push] Result:', res));
+          } else {
+            console.log(`[Push] No tokens found for ${noti.memberId}. Skipping.`);
+          }
+        } catch (pushErr) {
+          console.error('[Push] Client-side trigger failed:', pushErr);
+        }
+      })();
+
       return transformKeys(data?.[0], 'toCamel') as Notification;
     },
     getBadgeCount: async (memberId: string) => {
+      // [FIX] Guard: If memberId is UUID (Admin), skip badge count
+      if (memberId && memberId.length > 20) return { total: 0, personal: 0, notice: 0 };
+
       try {
         const { data: { user } } = await supabase.auth.getUser();
 
@@ -1137,8 +1391,10 @@ export const db = {
           .select('*', { count: 'exact', head: true })
           .eq('is_read', false);
 
-        if (user) pQuery = pQuery.eq('user_id', user.id);
-        else pQuery = pQuery.eq('member_id', memberId);
+        // [FIX] Consistently query by member_id (Phone) first
+        if (memberId) pQuery = pQuery.eq('member_id', memberId);
+        else if (user) pQuery = pQuery.eq('user_id', user.id);
+        else return { total: 0, personal: 0, notice: 0 }; // No ID to check
 
         const { count: pCount } = await pQuery;
         personalCount = pCount || 0;
@@ -1177,6 +1433,9 @@ export const db = {
   },
   fcmTokens: {
     add: async (memberId: string, token: string) => {
+      // [FIX] Admin (UUID) should not register tokens in Member Table
+      if (memberId.length > 20) return;
+
       // [SECURITY] Single Device Policy + User ID Link
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -1196,14 +1455,14 @@ export const db = {
         console.error("Failed to clear old tokens:", deleteError);
       }
 
-      // 2. Insert NEW Token
-      const { error } = await supabase.from('hannam_fcm_tokens').insert({
+      // 2. Upsert NEW Token (Handle duplicate key constraint gracefully)
+      const { error } = await supabase.from('hannam_fcm_tokens').upsert({
         user_id: user.id, // [CRITICAL] Link to Auth User (UUID)
         member_id: memberId, // Keep for reference/admin search (Phone)
         token: token,
         device_type: 'web',
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'member_id,token' });
 
       if (error) console.error("Failed to save FCM token:", error);
     },
@@ -1278,5 +1537,7 @@ export const db = {
       }
       return transformKeys(result, 'toCamel') as AdminPrivateNote;
     }
-  }
+  },
+  supabase,
+  hashPassword
 };
