@@ -28,7 +28,8 @@ const CareSessionPage: React.FC = () => {
   // Records & Notes
   const [notes, setNotes] = useState({
     noteSummary: '',
-    noteRecommendation: ''
+    noteRecommendation: '',
+    noteDetails: '' // [FIX] Added to state to preserve Secret Note
   });
   const [isProcessing, setIsProcessing] = useState(false);
   // const [showSignModal, setShowSignModal] = useState(false); // Unused
@@ -95,7 +96,8 @@ const CareSessionPage: React.FC = () => {
           // Pre-fill notes contributed by Instructor (Real-time Sync)
           setNotes({
             noteSummary: (res as any).noteSummary || '',
-            noteRecommendation: (res as any).noteRecommendation || ''
+            noteRecommendation: (res as any).noteRecommendation || '',
+            noteDetails: (res as any).noteDetails || '' // [FIX] Load Secret Note
           });
         }
       }
@@ -134,7 +136,7 @@ const CareSessionPage: React.FC = () => {
         discountRate: discountRate,
         finalPrice: finalAmount,
         noteSummary: notes.noteSummary,
-        noteDetails: '', // [FIX] User Request: Remove Secret Note from Admin Page,
+        noteDetails: notes.noteDetails, // [FIX] Pass Secret Note to DB
         settledBy: currentAdmin?.name || 'Admin',
         instructorName: managers.find(m => m.id === selectedManagerId)?.name || ''
       });
