@@ -137,7 +137,11 @@ export default function NotificationCenter() {
 
                 if (error) throw new Error('토큰 조회 실패: ' + error.message);
 
-                validTargets = (tokenData || []).map(r => ({ token: r.token, memberId: r.member_id }));
+                // [FK SAFEGUARD] Filter out tokens for deleted members
+                // Ensure memberId exists in our currently loaded members list
+                validTargets = (tokenData || [])
+                    .map(r => ({ token: r.token, memberId: r.member_id }))
+                    .filter(t => members.some(m => m.id === t.memberId));
             }
 
             // 3. Calculate Statistics

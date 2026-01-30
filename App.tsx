@@ -29,13 +29,17 @@ const App: React.FC = () => {
     const init = async () => {
       const saved = localStorage.getItem('hannam_auth_session');
       if (saved) {
-        const session = JSON.parse(saved);
-        if (session?.id) {
-          // 1. Permission & Token
-          await FcmService.requestPermission(session.id);
+        try {
+          const session = JSON.parse(saved);
+          if (session?.id) {
+            // 1. Permission & Token
+            await FcmService.requestPermission(session.id);
 
-          // 2. Initial Badge Count
-          await updateBadge(session.id);
+            // 2. Initial Badge Count
+            await updateBadge(session.id);
+          }
+        } catch (e) {
+          console.error("Init Session Error:", e);
         }
       }
     };
@@ -63,8 +67,14 @@ const App: React.FC = () => {
   };
 
   const [auth, setAuth] = useState<{ type: 'admin' | 'member' | null; id: string | null; email?: string }>(() => {
-    const saved = localStorage.getItem('hannam_auth_session');
-    return saved ? JSON.parse(saved) : { type: null, id: null };
+    try {
+      const saved = localStorage.getItem('hannam_auth_session');
+      return saved ? JSON.parse(saved) : { type: null, id: null };
+    } catch (e) {
+      console.error("Session Parse Error:", e);
+      localStorage.removeItem('hannam_auth_session');
+      return { type: null, id: null };
+    }
   });
 
   useEffect(() => {
