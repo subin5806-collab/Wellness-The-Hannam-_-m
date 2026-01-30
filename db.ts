@@ -421,14 +421,14 @@ export const db = {
     getAll: async () => {
       // [FIX] Explicit select for Admin List
       const { data } = await supabase.from('hannam_care_records')
-        .select('*, note_details, note_summary, signature_data, signature_status')
+        .select('*, note_details, note_summary, note_recommendation, signature_data, signature_status')
         .order('date', { ascending: false });
       return transformKeys(data || [], 'toCamel') as CareRecord[];
     },
     getByMemberId: async (memberId: string) => {
       // [ADMIN] Explicitly select all columns including notes and signature
       const { data } = await supabase.from('hannam_care_records')
-        .select('*, note_details, note_summary, signature_data, signature_status')
+        .select('*, note_details, note_summary, note_recommendation, signature_data, signature_status')
         .eq('member_id', memberId)
         .order('date', { ascending: false });
       return transformKeys(data || [], 'toCamel') as CareRecord[];
