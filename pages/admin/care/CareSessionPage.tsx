@@ -137,6 +137,7 @@ const CareSessionPage: React.FC = () => {
         finalPrice: finalAmount,
         noteSummary: notes.noteSummary,
         noteDetails: notes.noteDetails, // [FIX] Pass Secret Note to DB
+        noteRecommendation: notes.noteRecommendation, // [FIX] Pass Recommendation to DB
         settledBy: currentAdmin?.name || 'Admin',
         instructorName: managers.find(m => m.id === selectedManagerId)?.name || ''
       });

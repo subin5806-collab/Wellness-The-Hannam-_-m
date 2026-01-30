@@ -1123,7 +1123,6 @@ export const db = {
       if (privateNotes?.length) await supabase.from('hannam_admin_private_notes').upsert(transformKeys(privateNotes, 'toSnake'), { onConflict: 'id' });
       if (notifications?.length) await supabase.from('hannam_notifications').upsert(transformKeys(notifications, 'toSnake'), { onConflict: 'id' });
       if (actionLogs?.length) await supabase.from('hannam_admin_action_logs').upsert(transformKeys(actionLogs, 'toSnake'), { onConflict: 'id' });
-
       return { success: true };
     },
     processCsvMigration: async (rows: any[]) => {
