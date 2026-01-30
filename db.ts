@@ -536,6 +536,26 @@ export const db = {
 
       if (updateError) throw new Error(`잔액 업데이트 실패: ${updateError.message}`);
 
+      // [SMART MERGE] Fetch latest reservation notes to prevent overwriting with old/empty state
+      // If Admin didn't type anything (empty), prioritize what's currently in the DB (Instructor's latest save)
+      let finalSummary = record.noteSummary;
+      let finalDetails = record.noteDetails;
+      let finalRecs = record.noteRecommendation;
+
+      if (record.reservationId) {
+        const { data: latestRes } = await supabase.from('hannam_reservations').select('note_summary, note_details, note_recommendation').eq('id', record.reservationId).single();
+        if (latestRes) {
+          const dbSummary = latestRes.note_summary;
+          const dbDetails = latestRes.note_details;
+          const dbRecs = latestRes.note_recommendation;
+
+          // Merge Logic: If Admin Input is empty but DB has value, use DB value
+          if (!finalSummary && dbSummary) finalSummary = dbSummary;
+          if (!finalDetails && dbDetails) finalDetails = dbDetails;
+          if (!finalRecs && dbRecs) finalRecs = dbRecs;
+        }
+      }
+
       // [STEP 2] Create Care Record
       const { data: newRecord, error: insertError } = await supabase.from('hannam_care_records').insert([transformKeys({
         id: crypto.randomUUID(),
@@ -548,10 +568,10 @@ export const db = {
         discountRate: record.discountRate,
         finalPrice: record.finalPrice,
         balanceAfter: newRemaining,
-        noteSummary: record.noteSummary,
-        noteDetails: record.noteDetails,
+        noteSummary: finalSummary,
+        noteDetails: finalDetails,
         noteFutureRef: record.noteFutureRef,
-        noteRecommendation: record.noteRecommendation,
+        noteRecommendation: finalRecs,
         signatureStatus: 'pending',
         date: new Date().toISOString().split('T')[0],
         createdAt: new Date().toISOString()
