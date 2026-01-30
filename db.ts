@@ -1311,13 +1311,48 @@ export const db = {
       if (error) throw error;
     },
 
-    upsert: async (notice: any) => {
-      const { data, error } = await supabase.from('hannam_notices').upsert([transformKeys({
-        updatedAt: new Date().toISOString(),
-        ...notice
-      }, 'toSnake')]).select();
+    upsert: async (careRecordId: string, content: string) => {
+      // [FIX] Redirect to 'hannam_care_records.note_details' (Unified Secret Note)
+      // Append-Only Logic is handled by the caller (PrivateNoteEditor.tsx), which passes full 'finalContent'
+      const { data, error } = await supabase
+        .from('hannam_care_records')
+        .update({
+          note_details: content,
+          // note_updated_at: new Date().toISOString() // Optional column if exists
+        })
+        .eq('id', careRecordId)
+        .select()
+        .single();
+
       if (error) throw error;
-      return transformKeys(data?.[0], 'toCamel') as Notice;
+
+      // Return compatible shape for AdminPrivateNote
+      return {
+        id: data.id,
+        careRecordId: data.id,
+        content: data.note_details,
+        updatedAt: data.created_at // or updated_at if available
+      } as unknown as AdminPrivateNote;
+    },
+    getByCareRecordId: async (careRecordId: string) => {
+      // [FIX] Read from 'hannam_care_records.note_details'
+      const { data, error } = await supabase
+        .from('hannam_care_records')
+        .select('id, note_details, created_at')
+        .eq('id', careRecordId)
+        .single();
+
+      if (error) {
+        console.warn('AdminNote Fetch Error (Note might be empty):', error);
+        return null;
+      }
+
+      return {
+        id: data.id,
+        careRecordId: data.id,
+        content: data.note_details,
+        updatedAt: data.created_at
+      } as unknown as AdminPrivateNote;
     }
   },
   notifications: {
@@ -1510,56 +1545,46 @@ export const db = {
       return transformKeys(data || [], 'toCamel') as AdminPrivateNote[];
     },
     getByCareRecordId: async (careRecordId: string) => {
-      // [SECURITY] RLS will enforce admin-only access
-      const { data } = await supabase.from('hannam_admin_private_notes')
-        .select('*')
-        .eq('care_record_id', careRecordId)
+      // [FIX] Read from 'hannam_care_records.note_details' (Unified Secret Note)
+      const { data, error } = await supabase
+        .from('hannam_care_records')
+        .select('id, note_details, created_at')
+        .eq('id', careRecordId)
         .maybeSingle();
-      return transformKeys(data, 'toCamel') as AdminPrivateNote | null;
+
+      if (error) {
+        console.warn('AdminNote Fetch Error:', error);
+        return null;
+      }
+      if (!data) return null;
+
+      return {
+        id: data.id,
+        careRecordId: data.id,
+        content: data.note_details,
+        updatedAt: data.created_at
+      } as unknown as AdminPrivateNote;
     },
     upsert: async (careRecordId: string, content: string) => {
-      const saved = localStorage.getItem('hannam_auth_session');
-      const auth = saved ? JSON.parse(saved) : null;
-      const adminEmail = auth?.email || 'unknown';
+      // [FIX] Redirect to 'hannam_care_records.note_details' (Unified Secret Note)
+      const { data, error } = await supabase
+        .from('hannam_care_records')
+        .update({
+          note_details: content
+        })
+        .eq('id', careRecordId)
+        .select('id, note_details, created_at')
+        .single();
 
-      // Check existing
-      const { data: existing } = await supabase.from('hannam_admin_private_notes')
-        .select('id')
-        .eq('care_record_id', careRecordId)
-        .maybeSingle();
+      if (error) throw error;
 
-      let result;
-      if (existing) {
-        // Update
-        const { data, error } = await supabase.from('hannam_admin_private_notes')
-          .update({
-            content,
-            updated_at: new Date().toISOString()
-          })
-          .eq('care_record_id', careRecordId)
-          .select();
-        if (error) throw error;
-        result = data?.[0];
-      } else {
-        // Insert
-        // Need to fetch memberId from careRecord to fill the foreign key
-        const { data: record } = await supabase.from('hannam_care_records').select('member_id').eq('id', careRecordId).single();
-        const memberId = record?.member_id;
-
-        const { data, error } = await supabase.from('hannam_admin_private_notes')
-          .insert([{
-            care_record_id: careRecordId,
-            member_id: memberId, // Included for redundancy/RLS if needed
-            admin_email: adminEmail,
-            content,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }])
-          .select();
-        if (error) throw error;
-        result = data?.[0];
-      }
-      return transformKeys(result, 'toCamel') as AdminPrivateNote;
+      // Return compatible shape for AdminPrivateNote
+      return {
+        id: data.id,
+        careRecordId: data.id,
+        content: data.note_details,
+        updatedAt: data.created_at
+      } as unknown as AdminPrivateNote;
     }
   },
   supabase,
