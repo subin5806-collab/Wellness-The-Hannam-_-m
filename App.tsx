@@ -85,7 +85,11 @@ const App: React.FC = () => {
       <PWAInstallBanner />
       <UpdatePrompt />
       <Routes>
-        <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+        <Route path="/login" element={
+          auth.type === 'admin' ? <Navigate to="/admin" /> :
+            auth.type === 'member' ? <Navigate to="/member" /> :
+              <LoginPage onLogin={handleLogin} />
+        } />
 
         <Route path="/instructor/*" element={
           auth.type === 'admin' ? (

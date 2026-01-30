@@ -144,73 +144,75 @@ export default function NotificationCenter() {
 
                 // 2. Send App Push (API Dispatch)
                 if (channels.push) {
-                    // Logic to select tokens
-                    let tokensToUse: string[] = [];
+                    let targets: { token: string, memberId: string }[] = [];
 
-                    if (targetMode === 'ALL') {
-                        // Fetch ALL tokens from DB directly to ensure we get tokens, not member IDs
-                        const { data } = await supabase.from('hannam_fcm_tokens').select('token');
-                        tokensToUse = data?.map(r => r.token) || [];
-                        console.log(`[Push] Fetched ${tokensToUse.length} tokens for ALL members.`);
-                    } else {
-                        // Individual
-                        // We need to fetch tokens for these specific members. 
-                        // Currently `pushTokens` is a Set<MemberID>. We need actual FCM tokens.
-                        // Wait, `pushTokens` state in `NotificationCenter` (line 12) is `Set<string>`. 
-                        // `fetchData` (line 62) calls `db.fcmTokens.getAllAdmin()` which returns memberIDs.
-                        // This means we don't have the actual token strings in client state!
-                        // We need to fetch real tokens before sending.
-                        // But `db.fcmTokens.getByMemberId` returns array of tokens.
-
-                        const selectedIds = Array.from(selectedMemberIds);
-                        const tokenPromises = selectedIds.map(id => db.fcmTokens.getByMemberId(id));
-                        const tokenArrays = await Promise.all(tokenPromises);
-                        tokensToUse = tokenArrays.flat();
-                    }
-
-                    if (tokensToUse.length === 0) {
-                        console.warn("No FCM tokens found for selected targets.");
-                        // Proceed anyway as Notice/Popup might have been created.
-                    } else {
-                        // [PERSISTENCE] Save to 'hannam_notifications' for Personal Alarm Center
-                        // Logic: Identify target Member IDs
-                        let targetIds: string[] = [];
+                    try {
                         if (targetMode === 'ALL') {
-                            const { data: allMembers } = await supabase.from('hannam_members').select('id');
-                            targetIds = allMembers?.map(m => m.id) || [];
+                            // [BULK] Fetch ALL tokens with Member IDs
+                            const { data } = await supabase.from('hannam_fcm_tokens').select('token, member_id');
+                            if (data) targets = data.map(r => ({ token: r.token, memberId: r.member_id }));
+                            console.log(`[Push] Fetched ${targets.length} targets for ALL members.`);
                         } else {
-                            targetIds = Array.from(selectedMemberIds);
+                            // [INDIVIDUAL] Fetch tokens for specific members
+                            const selectedIds = Array.from(selectedMemberIds);
+                            // We need to query by member_id
+                            const { data } = await supabase.from('hannam_fcm_tokens')
+                                .select('token, member_id')
+                                .in('member_id', selectedIds);
+
+                            if (data) targets = data.map(r => ({ token: r.token, memberId: r.member_id }));
                         }
 
-                        // Bulk Insert to Notifications Table
-                        if (targetIds.length > 0) {
-                            const notiRows = targetIds.map(mid => ({
-                                id: `NOTI-${Date.now()}-${mid.slice(-4)}`, // Unique ID
-                                member_id: mid,
-                                type: 'PUSH', // [FIX] Store Type
-                                title,
-                                content: body,
-                                is_read: false,
-                                created_at: new Date().toISOString()
-                            }));
+                        if (targets.length === 0) {
+                            console.warn("No FCM tokens found for selected targets.");
+                        } else {
+                            // [PERSISTENCE] Save to 'hannam_notifications' for Personal Alarm Center (Client Side)
+                            // Note: The API also logs to 'notification_logs' (Server Side Audit), 
+                            // but 'hannam_notifications' is for the User App's list view.
+                            let targetMemberIds = Array.from(new Set(targets.map(t => t.memberId)));
 
-                            await supabase.from('hannam_notifications').insert(notiRows);
+                            if (targetMemberIds.length > 0) {
+                                // Filter out 'UNKNOWN' if any
+                                targetMemberIds = targetMemberIds.filter(id => id && id !== 'UNKNOWN');
+
+                                const notiRows = targetMemberIds.map(mid => ({
+                                    id: `NOTI-${Date.now()}-${mid.slice(-4)}`, // Unique ID
+                                    member_id: mid,
+                                    type: 'PUSH',
+                                    title,
+                                    content: body,
+                                    is_read: false,
+                                    created_at: new Date().toISOString()
+                                }));
+
+                                // Clean up old notifications logic if needed? 
+                                // No, just insert.
+                                await supabase.from('hannam_notifications').insert(notiRows);
+                            }
+
+                            // [API CALL]
+                            const res = await fetch('/api/push/send', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    title,
+                                    body,
+                                    targets: targets, // [NEW] Send Full Target Info
+                                    data: {
+                                        url: linkUrl,
+                                        image: imageUrl,
+                                        noticeId: noticeId
+                                    }
+                                })
+                            });
+
+                            const resJson = await res.json();
+                            console.log('[Push API Result]', resJson);
                         }
 
-                        await fetch('/api/push/send', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                title,
-                                body,
-                                tokens: tokensToUse,
-                                data: {
-                                    url: linkUrl,
-                                    image: imageUrl,
-                                    noticeId: noticeId // Link push to the notice if created
-                                }
-                            })
-                        });
+                    } catch (err: any) {
+                        console.error("Token Fetch Error:", err);
+                        alert(`토큰 조회 중 오류: ${err.message}`);
                     }
                 }
 
