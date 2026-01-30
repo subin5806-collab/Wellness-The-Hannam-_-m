@@ -434,11 +434,29 @@ export const db = {
       return transformKeys(data || [], 'toCamel') as CareRecord[];
     },
     getHistoryForMember: async (memberId: string) => {
-      // [SECURITY] 원천 차단: Secret Note (note_details)는 절대 조회하지 않음
-      const { data } = await supabase.from('hannam_care_records')
-        .select('id, member_id, membership_id, program_id, manager_id, date, note_summary, note_recommendation, note_future_ref, signature_status, balance_after, final_price, created_at')
+      // [SECURITY] CRITICAL: Exclude 'note_details' (Secret Note)
+      const { data, error } = await supabase.from('hannam_care_records')
+        .select(`
+          id, 
+          member_id, 
+          program_id, 
+          manager_id, 
+          date, 
+          note_summary, 
+          note_recommendation, 
+          signature_status, 
+          signature_data,
+          final_price,
+          balance_after,
+          created_at
+        `)
         .eq('member_id', memberId)
         .order('date', { ascending: false });
+
+      if (error) {
+        console.error('getHistoryForMember Error:', error);
+        return [];
+      }
       return transformKeys(data || [], 'toCamel') as CareRecord[];
     },
     getHistoryForInstructor: async (memberId: string) => {
@@ -451,8 +469,6 @@ export const db = {
     },
     getById: async (id: string) => {
       const { data, error } = await supabase.from('hannam_care_records').select('*, note_details').eq('id', id).maybeSingle();
-      if (error) throw error;
-      return transformKeys(data, 'toCamel') as CareRecord;
       if (error) throw error;
       return transformKeys(data, 'toCamel') as CareRecord;
     },

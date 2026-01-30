@@ -249,7 +249,7 @@ const InstructorRecordingPage: React.FC = () => {
                                             <div className="bg-[#FFFBF5] p-3 rounded-xl border border-[#EFE5D5]/50">
                                                 <p className="text-[10px] font-bold text-[#B0A18E] mb-1">추천 프로그램</p>
                                                 <p className="text-[11px] text-[#8C7B65] leading-relaxed line-clamp-2">
-                                                    {h.noteRecommendation}
+                                                    {h.noteRecommendation || h.wellnessRecommendation || '내용 없음'}
                                                 </p>
                                             </div>
                                         )}
