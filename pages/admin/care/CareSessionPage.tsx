@@ -299,21 +299,7 @@ const CareSessionPage: React.FC = () => {
               </div>
             </div>
 
-            {/* [RESTORED] Secret Note (Admin View) */}
-            <div className="space-y-1.5 pt-4 border-t border-dashed border-slate-200">
-              <div className="flex justify-between items-center">
-                <label className="text-[9px] font-bold text-[#A58E6F] uppercase tracking-widest ml-2 flex items-center gap-2">
-                  <span>Secret Note (Manager/Instructor Sync)</span>
-                  <span className="bg-[#A58E6F]/10 text-[#A58E6F] px-1.5 py-0.5 rounded text-[8px]">비공개</span>
-                </label>
-              </div>
-              <textarea
-                className="w-full px-5 py-4 bg-[#FFFBF5] rounded-[20px] h-32 outline-none border border-[#EFE5D5] focus:border-[#A58E6F] transition-all text-xs leading-relaxed font-medium resize-none placeholder:opacity-50 text-[#5C5042]"
-                placeholder="강사님이 작성한 비밀노트가 이곳에 연동됩니다. (회원에게 보이지 않음)"
-                value={notes.noteDetails}
-                onChange={e => setNotes({ ...notes, noteDetails: e.target.value })}
-              />
-            </div>
+            {/* [FIX] Secret Note Removed by User Request (Data is still handled in background) */}
           </div>
 
           <button onClick={handleCompleteSession} disabled={isProcessing} className="w-full py-4 bg-[#1A3C34] text-white rounded-[24px] font-bold uppercase text-[11px] tracking-[0.2em] shadow-lg active:scale-[0.98] transition-all hover:bg-[#1A4C40] flex items-center justify-center gap-2">
