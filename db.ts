@@ -1534,35 +1534,35 @@ export const db = {
       // [FIX] Admin (UUID) should not register tokens in Member Table
       if (memberId.length > 20) return;
 
-      // [SECURITY] Single Device Policy + User ID Link
       const { data: { user } } = await supabase.auth.getUser();
 
-      if (!user) {
-        console.warn('Cannot save FCM token: No active session.');
-        return;
+      // 1. [Single Device] Delete ALL existing tokens for this user/member
+      // If Supabase Auth User exists, delete by user_id
+      // If only Member (Phone Login), delete by member_id
+      const deleteQuery = supabase.from('hannam_fcm_tokens').delete();
+
+      if (user) {
+        await deleteQuery.eq('user_id', user.id);
+      } else {
+        // Fallback for Member Login (No Supabase Session)
+        await deleteQuery.eq('member_id', memberId);
       }
 
-      // 1. [Single Device] Delete ALL existing tokens for this user
-      // efficient way to ensure "Old Phone No Alert"
-      const { error: deleteError } = await supabase
-        .from('hannam_fcm_tokens')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (deleteError) {
-        console.error("Failed to clear old tokens:", deleteError);
-      }
-
-      // 2. Upsert NEW Token (Handle duplicate key constraint gracefully)
-      const { error } = await supabase.from('hannam_fcm_tokens').upsert({
-        user_id: user.id, // [CRITICAL] Link to Auth User (UUID)
-        member_id: memberId, // Keep for reference/admin search (Phone)
+      // 2. Upsert NEW Token
+      const payload: any = {
+        member_id: memberId, // Phone ID
         token: token,
         device_type: 'web',
         updated_at: new Date().toISOString()
-      }, { onConflict: 'member_id,token' });
+      };
+
+      // Only add user_id if authenticated via Supabase
+      if (user) payload.user_id = user.id;
+
+      const { error } = await supabase.from('hannam_fcm_tokens').upsert(payload, { onConflict: 'member_id,token' });
 
       if (error) console.error("Failed to save FCM token:", error);
+      else console.log(`[FCM] Token saved for ${memberId}.`);
     },
     getByMemberId: async (memberId: string) => {
       // Admin usage: Read by Phone ID
