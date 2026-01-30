@@ -59,13 +59,18 @@ const InstructorRecordingPage: React.FC = () => {
             const targetProg = p.find(x => x.id === res.programId);
             setProgram(targetProg || null);
 
+            // [NEW] Manager Map
+            const allManagers = await db.master.managers.getAll();
+            const managerMap = new Map(allManagers.map((mgr: any) => [mgr.id, mgr.name]));
+
             // [UX] Enhance History with Program Names & Map for Timeline
             // IMPORTANT: We filter out the current reservation ID if it exists in history (unlikely if strictly care records)
             // But if we want a "Timeline", we might mix them? 
             // For now, strictly use past Care Records.
             const enrichedHistory = (historyData || []).map((h: any) => ({
                 ...h,
-                programName: allProgs.find((prog: any) => prog.id === h.programId)?.name || h.programId
+                programName: allProgs.find((prog: any) => prog.id === h.programId)?.name || h.programId,
+                managerName: managerMap.get(h.managerId) || '미지정'
             }));
             setHistory(enrichedHistory);
 
@@ -199,22 +204,22 @@ const InstructorRecordingPage: React.FC = () => {
                 </div>
             )}
 
-            {/* [HEADER] Instructor Portal Style */}
-            <div className="bg-[#2F3A32] text-white p-6 pb-20 rounded-b-[40px] shadow-xl relative overflow-hidden mb-[-40px]">
+            {/* [HEADER] Instructor Portal Style - Slim Mobile */}
+            <div className="bg-[#2F3A32] text-white px-6 pt-12 pb-20 rounded-b-[40px] shadow-xl relative overflow-hidden mb-[-40px]">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-                <div className="max-w-7xl mx-auto relative z-10 flex justify-between items-start">
+                <div className="max-w-md mx-auto relative z-10 flex justify-between items-start">
                     <div>
                         <span className="text-[10px] text-[#A58E6F] font-bold uppercase tracking-widest block mb-2">Instructor Portal</span>
-                        <h1 className="text-3xl font-serif italic text-white mb-1">{member.name} <span className="text-white/50 text-xl not-italic font-sans">회원님</span></h1>
-                        <p className="text-white/60 text-sm">{program?.name}</p>
+                        <h1 className="text-2xl font-serif italic text-white mb-1">{member.name} <span className="text-white/50 text-xl not-italic font-sans">회원님</span></h1>
+                        <p className="text-white/60 text-xs font-bold">{program?.name}</p>
                     </div>
-                    <button onClick={() => navigate(-1)} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold text-white transition-all backdrop-blur-md">
+                    <button onClick={() => navigate(-1)} className="px-4 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-white transition-all backdrop-blur-md">
                         나가기
                     </button>
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto px-6 relative z-20">
+            <div className="max-w-md mx-auto px-4 relative z-20 pb-20">
                 {/* [SECTION 1] Horizontal History (Cards) */}
                 <div className="mb-8 overflow-visible">
                     <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-4 pl-2">Previous Wellness History</h3>
@@ -223,16 +228,32 @@ const InstructorRecordingPage: React.FC = () => {
                             .filter(h => h.id !== resId)
                             .slice(0, 10)
                             .map((h, idx) => (
-                                <div key={idx} className="snap-start flex-shrink-0 w-[280px] bg-white rounded-[20px] p-6 shadow-sm border border-slate-100 hover:shadow-md transition-all">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <span className="text-[12px] font-bold text-[#2F3A32]">{h.date}</span>
-                                        <span className="text-[10px] font-bold text-slate-400">₩{(h.finalPrice || 0).toLocaleString()}</span>
+                                <div key={idx} className="snap-start flex-shrink-0 w-[260px] bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <span className="text-[13px] font-bold text-[#2F3A32]">{h.date}</span>
+                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">{h.managerName}</span>
                                     </div>
-                                    <h4 className="font-bold text-[#A58E6F] text-sm mb-2">{h.programName}</h4>
-                                    {/* STRICTLY PUBLIC SUMMARY ONLY */}
-                                    <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-3 bg-slate-50 p-3 rounded-xl">
-                                        {h.noteSummary || '내용 없음'}
-                                    </p>
+                                    <h4 className="font-bold text-[#A58E6F] text-sm mb-3 line-clamp-1">{h.programName}</h4>
+
+                                    {/* INFO GRID */}
+                                    <div className="space-y-3">
+                                        {/* 1. Summary */}
+                                        <div className="bg-slate-50 p-3 rounded-xl">
+                                            <p className="text-[10px] font-bold text-slate-400 mb-1">관리 요약</p>
+                                            <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">
+                                                {h.noteSummary || '내용 없음'}
+                                            </p>
+                                        </div>
+                                        {/* 2. Recs (Shown only if exists) */}
+                                        {h.noteRecommendation && (
+                                            <div className="bg-[#FFFBF5] p-3 rounded-xl border border-[#EFE5D5]/50">
+                                                <p className="text-[10px] font-bold text-[#B0A18E] mb-1">추천 프로그램</p>
+                                                <p className="text-[11px] text-[#8C7B65] leading-relaxed line-clamp-2">
+                                                    {h.noteRecommendation}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             ))
                         }
@@ -244,142 +265,82 @@ const InstructorRecordingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* [SECTION 2] Split Layout: Timeline & Details */}
-                <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 items-start">
+                {/* [SECTION 2] Single Column Layout (Mobile Focused) - Removed Timeline Split */}
+                <div className="space-y-6">
 
-                    {/* LEFT: Timeline Panel */}
-                    <div className="bg-white rounded-[32px] p-6 shadow-sm border border-slate-100 hidden lg:block sticky top-6">
-                        <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6">History Timeline</h3>
-                        <div className="space-y-6 relative">
-                            <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-slate-100"></div>
+                    {/* 1. Public Wellness Note */}
+                    <div className="bg-white rounded-[32px] p-6 md:p-8 shadow-sm border border-slate-100">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-[12px] font-bold text-[#1A3C34] uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                Wellness Care Note
+                            </h3>
+                        </div>
 
-                            {/* Current Session (Active) */}
-                            <div className="relative pl-6">
-                                <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full bg-[#1A3C34] border-4 border-white shadow-sm z-10"></div>
-                                <div className="p-4 bg-[#1A3C34] rounded-[20px] shadow-lg text-white">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className="text-xs font-bold opacity-80">{reservation.date}</span>
-                                        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded text-white font-bold">Today</span>
-                                    </div>
-                                    <p className="font-bold text-sm mb-1">{program?.name}</p>
-                                    <p className="text-[10px] opacity-60">담당: {currentAdmin?.name}</p>
-                                </div>
+                        <div className="grid grid-cols-1 gap-6">
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-bold text-slate-400 pl-2">관리 요약/코멘트</label>
+                                <textarea
+                                    disabled={!isEditable}
+                                    className="w-full bg-[#F9F9F7] rounded-3xl p-5 border-transparent focus:bg-white focus:border-[#1A3C34] focus:ring-0 transition-all outline-none resize-none h-40 text-sm leading-relaxed text-slate-600 placeholder:text-slate-300"
+                                    placeholder="회원 앱 리포트에 표시될 내용을 작성하세요."
+                                    value={notes.noteSummary}
+                                    onChange={e => setNotes({ ...notes, noteSummary: e.target.value })}
+                                    style={{ fontSize: '16px' }} // Prevent iOS Zoom
+                                />
                             </div>
-
-                            {/* Past Sessions */}
-                            {history.slice(0, 5).map((h, i) => (
-                                <div key={i} className="relative pl-6 opacity-60 hover:opacity-100 transition-opacity cursor-default">
-                                    <div className="absolute left-[3px] top-2 w-2.5 h-2.5 rounded-full bg-slate-300 z-10"></div>
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="text-xs font-bold text-[#2F3A32] mb-0.5">{h.date}</p>
-                                            <p className="text-xs text-slate-500 line-clamp-1">{h.programName}</p>
-                                        </div>
-                                        {h.finalPrice > 0 && (
-                                            <span className="text-[10px] font-bold text-slate-400">-₩{h.finalPrice.toLocaleString()}</span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
+                            <div className="space-y-2">
+                                <label className="text-[11px] font-bold text-slate-400 pl-2">홈케어/프로그램 추천</label>
+                                <textarea
+                                    disabled={!isEditable}
+                                    className="w-full bg-[#F9F9F7] rounded-3xl p-5 border-transparent focus:bg-white focus:border-[#1A3C34] focus:ring-0 transition-all outline-none resize-none h-32 text-sm leading-relaxed text-slate-600 placeholder:text-slate-300"
+                                    placeholder="추천 프로그램이나 홈케어 가이드를 작성하세요."
+                                    value={notes.noteRecommendation}
+                                    onChange={e => setNotes({ ...notes, noteRecommendation: e.target.value })}
+                                    style={{ fontSize: '16px' }} // Prevent iOS Zoom
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    {/* RIGHT: Detail Editor */}
-                    <div className="space-y-6">
-
-                        {/* 1. Public Wellness Note */}
-                        <div className="bg-white rounded-[32px] p-10 shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-[12px] font-bold text-[#1A3C34] uppercase tracking-widest flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                    Wellness Care Note (공개용)
-                                </h3>
-                                {isEditable && <span className="text-[10px] font-bold text-slate-300 border border-slate-200 px-2 py-1 rounded-full">수정 가능</span>}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-bold text-slate-400 pl-2">관리 요약</label>
-                                    <textarea
-                                        disabled={!isEditable}
-                                        className="w-full bg-[#F9F9F7] rounded-3xl p-6 border-transparent focus:bg-white focus:border-[#1A3C34] focus:ring-0 transition-all outline-none resize-none h-48 text-sm leading-relaxed text-slate-600"
-                                        placeholder="회원 앱 리포트에 표시될 내용을 작성하세요."
-                                        value={notes.noteSummary}
-                                        onChange={e => setNotes({ ...notes, noteSummary: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-bold text-slate-400 pl-2">홈케어 추천</label>
-                                    <textarea
-                                        disabled={!isEditable}
-                                        className="w-full bg-[#F9F9F7] rounded-3xl p-6 border-transparent focus:bg-white focus:border-[#1A3C34] focus:ring-0 transition-all outline-none resize-none h-48 text-sm leading-relaxed text-slate-600"
-                                        placeholder="추천 프로그램이나 홈케어 가이드를 작성하세요."
-                                        value={notes.noteRecommendation}
-                                        onChange={e => setNotes({ ...notes, noteRecommendation: e.target.value })}
-                                    />
-                                </div>
+                    {/* 2. Secret Note */}
+                    <div className="bg-[#FFFBF5] rounded-[32px] p-6 md:p-8 shadow-sm border border-[#EFE5D5]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-[12px] font-bold text-[#8C7B65] uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-[#8C7B65]"></span>
+                                Secret Note
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-[#B0A18E] bg-[#EFE5D5]/50 px-3 py-1 rounded-full">
+                                    관리자 전용
+                                </span>
                             </div>
                         </div>
 
-                        {/* 2. Secret Note */}
-                        <div className="bg-[#FFFBF5] rounded-[32px] p-10 shadow-sm border border-[#EFE5D5]">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-[12px] font-bold text-[#8C7B65] uppercase tracking-widest flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-[#8C7B65]"></span>
-                                    Secret Note ({currentAdmin?.name} 강사님 전용)
-                                </h3>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-[#B0A18E] bg-[#EFE5D5]/50 px-3 py-1 rounded-full">
-                                        ⚠️ 저장 후 자동 숨김 처리됨
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-col md:flex-row gap-8">
-                                {/* Left Info (Optional context) */}
-                                <div className="hidden md:block w-56 space-y-4 pt-2">
-                                    <div className="bg-white/50 p-6 rounded-2xl border border-[#EFE5D5]/50">
-                                        <p className="text-[10px] font-bold text-[#B0A18E] mb-1">REFERENCE INFO</p>
-                                        <p className="text-sm font-bold text-[#8C7B65] mb-4">{reservation.date}</p>
-                                        <p className="text-[10px] font-bold text-[#B0A18E] mb-1">PROGRAM</p>
-                                        <p className="text-xs font-bold text-[#8C7B65] mb-4">{program?.name}</p>
-                                        {notes.noteSummary && (
-                                            <>
-                                                <p className="text-[10px] font-bold text-[#B0A18E] mb-1">PUBLIC SNAPSHOT</p>
-                                                <p className="text-[10px] text-[#8C7B65] line-clamp-3 opacity-70">{notes.noteSummary}</p>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Editor */}
-                                <div className="flex-1">
-                                    <textarea
-                                        disabled={!isEditable}
-                                        className="w-full bg-white rounded-3xl p-6 border border-[#EFE5D5] focus:border-[#8C7B65] focus:ring-0 transition-all outline-none resize-none h-64 text-sm leading-relaxed text-[#5C5042] placeholder:text-[#B0A18E]/70"
-                                        placeholder={
-                                            notes.noteDetails ?
-                                                "이곳에 작성된 내용은 회원에게 절대 공개되지 않습니다. 관리 이력, 특이사항, 내부 공유 메모를 자유롭게 남기세요." :
-                                                "비밀노트가 저장되어 숨겨졌거나 비어있습니다."
-                                        }
-                                        value={notes.noteDetails}
-                                        onChange={e => setNotes({ ...notes, noteDetails: e.target.value })}
-                                    />
-                                    <div className="flex justify-end mt-4">
-                                        {isEditable && (
-                                            <button
-                                                onClick={handleSave}
-                                                disabled={isSaving}
-                                                className="px-8 py-4 bg-[#2F3A32] text-white rounded-2xl font-bold text-xs shadow-lg hover:bg-[#1A261D] hover:scale-105 active:scale-95 transition-all tracking-wider"
-                                            >
-                                                {isSaving ? '저장 중...' : '비공개 노트 저장 (SCERET SAVE)'}
-                                            </button>
-                                        )}
-                                    </div>
+                        <div className="flex flex-col gap-6">
+                            {/* Editor */}
+                            <div className="flex-1">
+                                <textarea
+                                    disabled={!isEditable}
+                                    className="w-full bg-white rounded-3xl p-5 border border-[#EFE5D5] focus:border-[#8C7B65] focus:ring-0 transition-all outline-none resize-none h-48 text-sm leading-relaxed text-[#5C5042] placeholder:text-[#B0A18E]/70"
+                                    placeholder="이곳에 작성된 내용은 회원에게 절대 공개되지 않습니다. (관리자 페이지에 자동 연동됨)"
+                                    value={notes.noteDetails}
+                                    onChange={e => setNotes({ ...notes, noteDetails: e.target.value })}
+                                    style={{ fontSize: '16px' }} // Prevent iOS Zoom
+                                />
+                                <div className="flex justify-end mt-4">
+                                    {isEditable && (
+                                        <button
+                                            onClick={handleSave}
+                                            disabled={isSaving}
+                                            className="w-full py-4 bg-[#2F3A32] text-white rounded-2xl font-bold text-sm shadow-lg hover:bg-[#1A261D] active:scale-95 transition-all tracking-wider"
+                                        >
+                                            {isSaving ? '저장 중...' : '모든 기록 저장 (SAVE ALL)'}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>
