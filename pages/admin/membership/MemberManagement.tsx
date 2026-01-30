@@ -36,6 +36,8 @@ export default function MemberManagement() {
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false); // [UI] For Notification Feedback
+  const [isDeleting, setIsDeleting] = useState(false); // [UI] For Deletion Feedback
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const balanceEngine = useBalanceEngine(selectedMember?.id || null);
   const [activeTab, setActiveTab] = useState<DetailTab>('PROFILE');
@@ -630,16 +632,30 @@ export default function MemberManagement() {
                     await db.memberships.topUp(selectedMember.id, grantForm.amount, grantForm.productName, grantForm.discountRate, grantForm.productId);
 
                     // [AlimTalk] Payment Complete Notification
+                    let notiResultMsg = '';
                     try {
-                      const config = await db.system.getAlimTalkConfig();
-                      if (config?.isActive) {
-                        const msg = `[웰니스더한남] 멤버십 결제 완료\n\n${selectedMember.name}님, ${grantForm.productName} 멤버십(수동부여)이 등록되었습니다.\n금액: ${grantForm.amount.toLocaleString()}원`;
-                        await AligoService.sendDirect(selectedMember.phone, msg, 'TP_PAY_01');
+                      setIsSending(true); // Start Spinner
+                      const notiRes = await AligoService.sendWithCheck('PAYMENT', selectedMember.phone, {
+                        '이름': selectedMember.name,
+                        '금액': grantForm.amount.toLocaleString(),
+                        '상품': grantForm.productName
+                      });
+
+                      console.log('[AlimTalk] Manual Payment Noti Result:', notiRes);
+                      if (notiRes.success) {
+                        notiResultMsg = `\n(카카오 알림톡이 정상적으로 발송되었습니다)\n- 수신자: ${selectedMember.name} (${selectedMember.phone})\n- 템플릿: 결제완료 안내`;
+                      } else {
+                        notiResultMsg = `\n(알림톡 발송 실패: ${notiRes.message || '설정 확인 필요'})`;
                       }
-                    } catch (e) { console.error('AlimTalk Error:', e); }
-                    alert('멤버십이 성공적으로 부여되었습니다.');
-                    setShowGrantMembershipModal(false);
-                    handleViewDetails(selectedMember); // Refresh
+                    } catch (e) {
+                      console.error('AlimTalk Error:', e);
+                      notiResultMsg = '\n(알림톡 발송 중 에러 발생)';
+                    } finally {
+                      setIsSending(false); // Stop Spinner
+                      alert(`멤버십이 성공적으로 부여되었습니다.${notiResultMsg}`);
+                      setShowGrantMembershipModal(false);
+                      handleViewDetails(selectedMember); // Refresh
+                    }
                   } catch (e: any) { alert(e.message); }
                 }}
                 className="w-full py-5 bg-[#1A3C34] text-white rounded-2xl font-bold text-lg shadow-lg hover:scale-[1.02] transition-all"
@@ -702,12 +718,14 @@ export default function MemberManagement() {
                   type="button"
                   onClick={() => setShowDeleteModal(false)}
                   className="py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-bold transition-all text-[15px]"
+                  disabled={isDeleting}
                 >
                   취소 (돌아가기)
                 </button>
                 <button
                   type="button"
                   onClick={async () => {
+                    setIsDeleting(true);
                     try {
                       await db.members.delete(selectedMember.id);
                       alert('회원 정보가 영구적으로 삭제되었습니다.');
@@ -715,11 +733,23 @@ export default function MemberManagement() {
                       setSelectedMember(null);
                       fetchMembers();
                       navigate('/admin/members');
-                    } catch (e: any) { alert(e.message); }
+                    } catch (e: any) {
+                      alert(e.message);
+                    } finally {
+                      setIsDeleting(false);
+                    }
                   }}
-                  className="py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-3xl font-bold shadow-lg hover:shadow-xl transition-all text-[15px]"
+                  className={`py-5 bg-rose-500 text-white rounded-3xl font-bold shadow-lg transition-all text-[15px] flex items-center justify-center gap-2 ${isDeleting ? 'opacity-70 cursor-wait' : 'hover:bg-rose-600 hover:shadow-xl'}`}
+                  disabled={isDeleting}
                 >
-                  삭제 확정
+                  {isDeleting ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      삭제 중...
+                    </>
+                  ) : (
+                    '삭제 확정'
+                  )}
                 </button>
               </div>
             </div>

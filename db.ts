@@ -1403,6 +1403,23 @@ export const db = {
       const { data } = await query;
       return transformKeys(data || [], 'toCamel') as Notification[];
     },
+    getAllAdmin: async () => {
+      // [ADMIN] Fetch ALL notifications for History Tab using RLS admin privileges
+      const { data } = await supabase.from('hannam_notifications')
+        .select(`
+          *,
+          member:hannam_members(name, phone)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100); // Limit to recent 100 for performance
+      return transformKeys(data || [], 'toCamel');
+    },
+    delete: async (id: string, memberId?: string) => {
+      // [SYNC DELETE] Admin cleanup
+      // If Admin deletes, it disappears from Member's view immediately (Row Deletion)
+      const { error } = await supabase.from('hannam_notifications').delete().eq('id', id);
+      if (error) throw error;
+    },
     markAsRead: async (id: string) => {
       await supabase.from('hannam_notifications').update({ is_read: true }).eq('id', id);
     },
@@ -1496,7 +1513,10 @@ export const db = {
         let noticeCount = (totalNotices || 0) - confirmedCount;
         if (noticeCount < 0) noticeCount = 0;
 
-        const totalBadge = personalCount + noticeCount;
+        // [BADGE FIX] User Request: "Badge checks but doesn't go away."
+        // Likely because 'noticeCount' (Public Notices) remains high if not explicitly confirmed.
+        // We will restrict App Badge to PERSONAL notifications only for a cleaner UX.
+        const totalBadge = personalCount; // + noticeCount (Removed from Badge, kept in return)
 
         // [PWA Badge]
         if ('setAppBadge' in navigator) {

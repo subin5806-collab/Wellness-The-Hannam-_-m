@@ -6,6 +6,7 @@ import { FcmService } from '../../../src/firebase';
 export default function NotificationCenter() {
     const [activeTab, setActiveTab] = useState<'COMPOSE' | 'AUTO' | 'HISTORY'>('COMPOSE');
     const [members, setMembers] = useState<Member[]>([]);
+    const [history, setHistory] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -38,6 +39,16 @@ export default function NotificationCenter() {
         fetchData();
         loadSettings();
     }, []);
+
+    useEffect(() => {
+        if (activeTab === 'HISTORY') {
+            setIsLoading(true);
+            (db.notifications as any).getAllAdmin().then((data: any) => {
+                setHistory(data || []);
+                setIsLoading(false);
+            });
+        }
+    }, [activeTab]);
 
     const loadSettings = async () => {
         const { data } = await supabase.from('hannam_system_settings').select('setting_value').eq('setting_key', 'NOTIFICATION_CONFIG').single();
@@ -544,9 +555,49 @@ export default function NotificationCenter() {
                             </tr>
                         </thead>
                         <tbody className="text-sm font-medium text-slate-600">
-                            <tr>
-                                <td colSpan={4} className="py-20 text-center text-slate-300 italic">아직 발송된 이력이 없습니다.</td>
-                            </tr>
+                            {isLoading ? (
+                                <tr><td colSpan={4} className="py-20 text-center text-slate-300 italic">로딩 중...</td></tr>
+                            ) : history.length === 0 ? (
+                                <tr><td colSpan={4} className="py-20 text-center text-slate-300 italic">아직 발송된 이력이 없습니다.</td></tr>
+                            ) : (
+                                history.map((item: any) => (
+                                    <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                                        <td className="py-4 font-bold text-[#2F3A32] tabular-nums text-xs">
+                                            {item.createdAt?.replace('T', ' ').slice(0, 16)}
+                                        </td>
+                                        <td className="py-4">
+                                            <span className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold text-slate-500 uppercase">{item.type || 'PUSH'}</span>
+                                        </td>
+                                        <td className="py-4">
+                                            <div className="font-bold text-[#2F3A32] text-sm">{item.title}</div>
+                                            <div className="text-xs text-slate-400 line-clamp-1">{item.content}</div>
+                                        </td>
+                                        <td className="py-4 text-right">
+                                            <div className="flex items-center justify-end gap-4">
+                                                <div className="text-right">
+                                                    <div className="text-xs font-bold text-[#1A3C34]">{item.member?.name || (item.memberId === 'ALL' ? '전체' : item.memberId)}</div>
+                                                    <div className="text-[10px] text-slate-300">{item.member?.phone}</div>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (confirm('이 알림을 삭제하시겠습니까?\n(회원 앱에서도 즉시 삭제됩니다)')) {
+                                                            try {
+                                                                await db.notifications.delete(item.id);
+                                                                setHistory(prev => prev.filter((h: any) => h.id !== item.id));
+                                                            } catch (e) {
+                                                                alert('삭제 실패');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>

@@ -1,6 +1,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { AligoService } from '../../services/aligo';
 
 // Initialize Supabase Client (Service Role needed for Cron to act as Admin)
 // We need SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
@@ -140,23 +141,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 .replace('#{시간}', res.time)
                 .replace('#{프로그램}', res.program?.name || '케어');
 
-            formData.append('message_1', messageBody);
-            // Failover (SMS)
-            // formData.append('failover', 'Y');
-            // formData.append('fsubject_1', '예약알림');
-            // formData.append('fmessage_1', messageBody);
+            // [CONTROL CENTER INTEGRATION]
+            // We use sendWithCheck to respect the "VISIT_REMINDER" switch in the Control Center.
+            // If the switch is OFF (default), it will skip silently.
 
-            try {
-                const aligoRes = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: formData
-                });
-                const result = await aligoRes.json();
-                results.push({ id: res.id, success: result.code === 0, result });
-            } catch (e) {
-                results.push({ id: res.id, success: false, error: e });
-            }
+            const notiRes = await AligoService.sendWithCheck('VISIT_REMINDER', res.member.phone, {
+                '이름': res.member.name,
+                '날짜': res.date,
+                '시간': res.time,
+                '프로그램': res.program?.name || '케어'
+            });
+
+            results.push({ id: res.id, success: notiRes.success, result: notiRes });
         }
 
         return res.status(200).json({

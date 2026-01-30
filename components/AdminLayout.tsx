@@ -2,6 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import QuickReservationModal from './admin/reservation/QuickReservationModal';
+import NotificationCenter from '../pages/admin/system/NotificationCenter';
+import MasterSettings from '../pages/admin/system/MasterSettings';
+import NotificationControl from '../pages/admin/system/NotificationControl';
 import { db } from '../db';
 
 interface AdminLayoutProps {
@@ -45,6 +48,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, onLogout }) => {
     { path: '/admin/records', label: '이용 내역 관리' },
     { path: '/admin/notices', label: '공지/알림' },
     { path: '/admin/notification-center', label: '알림 센터 (Push)' },
+    { path: '/admin/notification-control', label: '알림 통합 관제 (Control)' },
     { path: '/admin/accounts', label: '계정/권한 관리' },
     { path: '/admin/settings', label: '시스템 설정' },
   ];

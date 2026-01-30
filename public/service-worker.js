@@ -35,3 +35,27 @@ self.addEventListener('fetch', (event) => {
     // Standard Browser Caching is sufficient for Vercel.
     return;
 });
+
+// [Deep Link Handler]
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close(); // Close the notification
+
+    const urlToOpen = event.notification.data?.url || '/';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+            // Check if there is already a window/tab open with the target URL
+            for (let i = 0; i < windowClients.length; i++) {
+                const client = windowClients[i];
+                // Optional: Check if url matches, or just focus the first window and navigate
+                if (client.url === urlToOpen && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            // If no window is open, open a new one
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
+    );
+});

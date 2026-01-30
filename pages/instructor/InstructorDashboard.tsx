@@ -55,7 +55,7 @@ const InstructorDashboard: React.FC = () => {
                             ...r,
                             memberName: memberMap.get(r.memberId)?.name || 'Unknown',
                             memberPhone: memberMap.get(r.memberId)?.phone || '',
-                            isCompleted: r.status === 'COMPLETED'
+                            isCompleted: r.status === 'completed'
                         }));
 
                         setReservations(enhancedRes);

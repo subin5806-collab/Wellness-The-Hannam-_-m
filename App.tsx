@@ -13,6 +13,7 @@ import MasterSettings from './pages/admin/system/MasterSettings';
 import CareRecordManagement from './pages/admin/care/CareRecordManagement';
 import CareHistorySplitPage from './pages/admin/care/CareHistorySplitPage';
 import NotificationCenter from './pages/admin/system/NotificationCenter';
+import NotificationControl from './pages/admin/system/NotificationControl';
 import AccountManagement from './pages/admin/system/AccountManagement';
 import WellnessHistoryReportPage from './pages/admin/care/WellnessHistoryReportPage';
 import InstructorRecordingPage from './pages/admin/care/InstructorRecordingPage';
@@ -109,6 +110,7 @@ const App: React.FC = () => {
                   <Route path="records" element={<CareRecordManagement />} />
                   <Route path="notices" element={<NoticeManagement />} />
                   <Route path="notification-center" element={<NotificationCenter />} />
+                  <Route path="notification-control" element={<NotificationControl />} />
                   <Route path="care/:memberId" element={<CareSessionPage />} />
                   <Route path="care-report/:memberId" element={<WellnessHistoryReportPage />} />
                   {/* [MOVED] care-record-edit moved to /instructor/record */}
