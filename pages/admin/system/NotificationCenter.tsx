@@ -117,119 +117,131 @@ export default function NotificationCenter() {
         if (!title || !body) return alert('제목과 내용을 입력해주세요.');
         if (targetMode === 'INDIVIDUAL' && selectedMemberIds.size === 0) return alert('대상 회원을 선택해주세요.');
 
-        const targetCount = targetMode === 'ALL' ? members.length : selectedMemberIds.size;
-        const channelNames = Object.entries(channels).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join(', ');
-
-        if (confirm(`[${channelNames}] 채널로 총 ${targetCount}명에게 발송하시겠습니까?`)) {
-            try {
-                let noticeId = null;
-
-                // 1. Create Notice / Popup (DB Persistence)
-                // If Notice or Popup is selected, we create a record in 'hannam_notices'
-                if (channels.notice || channels.popup) {
-                    const noticeData = {
-                        title,
-                        content: body,
-                        imageUrl: imageUrl || null,
-                        category: 'NOTICE', // Default category
-                        isPopup: channels.popup, // If popup is selected, mark as popup
-                        isAlertOn: channels.push, // Logic: If push is also selected, we mark it. (Optional logic)
-                        startDate: new Date().toISOString().split('T')[0],
-                        endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0], // Default 1 month
-                    };
-
-                    const newNotice = await db.notices.add(noticeData);
-                    noticeId = newNotice?.id;
-                }
-
-                // 2. Send App Push (API Dispatch)
-                if (channels.push) {
-                    let targets: { token: string, memberId: string }[] = [];
-
-                    try {
-                        if (targetMode === 'ALL') {
-                            // [BULK] Fetch ALL tokens with Member IDs
-                            const { data } = await supabase.from('hannam_fcm_tokens').select('token, member_id');
-                            if (data) targets = data.map(r => ({ token: r.token, memberId: r.member_id }));
-                            console.log(`[Push] Fetched ${targets.length} targets for ALL members.`);
-                        } else {
-                            // [INDIVIDUAL] Fetch tokens for specific members
-                            const selectedIds = Array.from(selectedMemberIds);
-                            // We need to query by member_id
-                            const { data } = await supabase.from('hannam_fcm_tokens')
-                                .select('token, member_id')
-                                .in('member_id', selectedIds);
-
-                            if (data) targets = data.map(r => ({ token: r.token, memberId: r.member_id }));
-                        }
-
-                        if (targets.length === 0) {
-                            console.warn("No FCM tokens found for selected targets.");
-                        } else {
-                            // [PERSISTENCE] Save to 'hannam_notifications' for Personal Alarm Center (Client Side)
-                            // Note: The API also logs to 'notification_logs' (Server Side Audit), 
-                            // but 'hannam_notifications' is for the User App's list view.
-                            let targetMemberIds = Array.from(new Set(targets.map(t => t.memberId)));
-
-                            if (targetMemberIds.length > 0) {
-                                // Filter out 'UNKNOWN' if any
-                                targetMemberIds = targetMemberIds.filter(id => id && id !== 'UNKNOWN');
-
-                                const notiRows = targetMemberIds.map(mid => ({
-                                    id: `NOTI-${Date.now()}-${mid.slice(-4)}`, // Unique ID
-                                    member_id: mid,
-                                    type: 'PUSH',
-                                    title,
-                                    content: body,
-                                    is_read: false,
-                                    created_at: new Date().toISOString()
-                                }));
-
-                                // Clean up old notifications logic if needed? 
-                                // No, just insert.
-                                await supabase.from('hannam_notifications').insert(notiRows);
-                            }
-
-                            // [API CALL]
-                            const res = await fetch('/api/push/send', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    title,
-                                    body,
-                                    targets: targets, // [NEW] Send Full Target Info
-                                    data: {
-                                        url: linkUrl,
-                                        image: imageUrl,
-                                        noticeId: noticeId
-                                    }
-                                })
-                            });
-
-                            const resJson = await res.json();
-                            console.log('[Push API Result]', resJson);
-                        }
-
-                    } catch (err: any) {
-                        console.error("Token Fetch Error:", err);
-                        alert(`토큰 조회 중 오류: ${err.message}`);
-                    }
-                }
-
-                alert('통합 발송 처리가 완료되었습니다.');
-                // Reset Form
-                setComposeForm(prev => ({
-                    ...prev,
-                    title: '',
-                    body: '',
-                    imageUrl: '',
-                    linkUrl: '',
-                    selectedMemberIds: new Set()
-                }));
-            } catch (e: any) {
-                console.error(e);
-                alert('발송 중 오류가 발생했습니다: ' + e.message);
+        try {
+            // 1. Determine Target IDs
+            let allTargetIds: string[] = [];
+            if (targetMode === 'ALL') {
+                allTargetIds = members.map(m => m.id);
+            } else {
+                allTargetIds = Array.from(selectedMemberIds);
             }
+
+            // 2. [FILTERING] Fetch Tokens for these targets to identify valid devices
+            let validTargets: { token: string, memberId: string }[] = [];
+
+            if (channels.push) {
+                const { data: tokenData, error } = await supabase
+                    .from('hannam_fcm_tokens')
+                    .select('token, member_id')
+                    .in('member_id', allTargetIds);
+
+                if (error) throw new Error('토큰 조회 실패: ' + error.message);
+
+                validTargets = (tokenData || []).map(r => ({ token: r.token, memberId: r.member_id }));
+            }
+
+            // 3. Calculate Statistics
+            const totalTargetCount = allTargetIds.length;
+            const validDeviceCount = validTargets.length;
+            const skippedCount = totalTargetCount - validDeviceCount;
+
+            const channelNames = Object.entries(channels).filter(([_, v]) => v).map(([k]) => k.toUpperCase()).join(', ');
+
+            // 4. Detailed Confirmation
+            const confirmMsg = `[통합 발송 리포트]\n\n` +
+                `- 발송 채널: ${channelNames}\n` +
+                `- 총 발송 대상: ${totalTargetCount}명\n` +
+                `- 📱 앱 설치(유효) 기기: ${channels.push ? validDeviceCount : '-'}명\n` +
+                `- 🚫 앱 미설치(제외): ${channels.push ? skippedCount : '-'}명\n\n` +
+                `이대로 발송하시겠습니까?`;
+
+            if (!confirm(confirmMsg)) return;
+
+            let noticeId = null;
+
+            // 5. Create Notice / Popup (DB Persistence) - Persist even if no valid push targets
+            if (channels.notice || channels.popup) {
+                const noticeData = {
+                    title,
+                    content: body,
+                    imageUrl: imageUrl || null,
+                    category: 'NOTICE',
+                    isPopup: channels.popup,
+                    isAlertOn: channels.push,
+                    startDate: new Date().toISOString().split('T')[0],
+                    endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+                };
+
+                const newNotice = await db.notices.add(noticeData);
+                noticeId = newNotice?.id;
+            }
+
+            // 6. Send App Push (API Dispatch) - Only if targets exist
+            let apiResult = { success: 0, failure: 0 };
+
+            if (channels.push && validTargets.length > 0) {
+                // [PERSISTENCE] Save to 'hannam_notifications' for Personal Alarm List (Client Side)
+                // Use valid targets only
+                const notiRows = validTargets.map(({ memberId }) => ({
+                    id: `NOTI-${Date.now()}-${memberId.slice(-4)}`,
+                    member_id: memberId,
+                    type: 'PUSH',
+                    title,
+                    content: body,
+                    is_read: false,
+                    created_at: new Date().toISOString()
+                }));
+
+                // Batch insert notifications
+                // Supabase insert has limits, but validTargets unlikely to exceed limit in one go here (or handle chunks if needed)
+                // For safety, let's splice if massive, but usually 1000 is fine.
+                const { error: notiError } = await supabase.from('hannam_notifications').insert(notiRows);
+                if (notiError) console.warn('Failed to save in-app notification history', notiError);
+
+                // [API CALL]
+                const res = await fetch('/api/push/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        body,
+                        targets: validTargets, // Send only filtered valid targets
+                        data: {
+                            url: linkUrl,
+                            image: imageUrl,
+                            noticeId: noticeId
+                        }
+                    })
+                });
+
+                const resJson = await res.json();
+                if (resJson.success) {
+                    apiResult = { success: resJson.successCount, failure: resJson.failureCount };
+                }
+            }
+
+            // 7. Final Report
+            const resultMsg = `[발송 완료]\n\n` +
+                `- 총 대상: ${totalTargetCount}명\n` +
+                `- 🚫 앱 미설치(제외): ${skippedCount}명\n` +
+                `- ✅ 발송 성공: ${apiResult.success}건\n` +
+                `- ❌ 발송 실패(네트워크 등): ${apiResult.failure}건`;
+
+            alert(resultMsg);
+
+            // Reset Form
+            setComposeForm(prev => ({
+                ...prev,
+                title: '',
+                body: '',
+                imageUrl: '',
+                linkUrl: '',
+                selectedMemberIds: new Set()
+            }));
+
+        } catch (e: any) {
+            console.error(e);
+            alert('발송 중 오류가 발생했습니다: ' + e.message);
         }
     };
 
