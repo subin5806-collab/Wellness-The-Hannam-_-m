@@ -103,13 +103,15 @@ const InstructorRecordingPage: React.FC = () => {
         }
     };
 
+    const [newSecretNote, setNewSecretNote] = useState(''); // [NEW] Append-only input
+
     const handleSave = async () => {
         if (!reservation || !member || !currentAdmin) return;
 
         // [SECURITY] 2nd Confirmation for Secret Notes
-        const hasSecretNote = notes.noteDetails.trim().length > 0;
-        const confirmMsg = hasSecretNote
-            ? "비밀노트는 저장 후 화면에서 즉시 숨겨지며, 더 이상 내용을 확인할 수 없습니다. 저장하시겠습니까?"
+        const hasNewSecretNote = newSecretNote.trim().length > 0;
+        const confirmMsg = hasNewSecretNote
+            ? "작성하신 비밀노트는 저장 후 '수정 및 삭제'가 불가능합니다. 저장하시겠습니까?"
             : "케어 기록을 저장하시겠습니까?";
 
         if (!window.confirm(confirmMsg)) return;
@@ -127,9 +129,29 @@ const InstructorRecordingPage: React.FC = () => {
             // [FIX] Sanitized UUID: Remove 'DIR_' prefix if present
             const safeAuthorId = currentAdmin.id.replace('DIR_', '');
 
+            // [LOGIC] Append Only Logic
+            let finalSecretDetails = notes.noteDetails;
+            if (hasNewSecretNote) {
+                const timestamp = new Date().toLocaleString('ko-KR', { hour12: false });
+                const authorName = currentAdmin.name;
+                const appendLog = `\n[${timestamp} ${authorName}]\n${newSecretNote.trim()}\n`;
+
+                // If existing content exists, double newline separator
+                if (finalSecretDetails) {
+                    finalSecretDetails += `\n${appendLog}`;
+                } else {
+                    finalSecretDetails = appendLog;
+                }
+            }
+
+            const updatedNotes = {
+                ...notes,
+                noteDetails: finalSecretDetails
+            };
+
             // 1. Update Reservation (Always)
             await db.reservations.saveNotes(resId!, {
-                ...notes,
+                ...updatedNotes,
                 // [SECURITY] Strict Author Tracking
                 noteAuthorId: safeAuthorId,
                 noteAuthorName: currentAdmin.name, // Name is safe as string
@@ -141,7 +163,7 @@ const InstructorRecordingPage: React.FC = () => {
                 console.log('>>> [SYNC] Updating Linked Care Record also.');
                 await db.careRecords.update(linkedCareRecordId, {
                     noteSummary: notes.noteSummary,
-                    noteDetails: notes.noteDetails,
+                    noteDetails: finalSecretDetails, // [SYNC] Appended Note
                     noteRecommendation: notes.noteRecommendation,
                     noteFutureRef: notes.noteFutureRef
                     // Note: We don't overwrite financial data here, only notes
@@ -159,8 +181,9 @@ const InstructorRecordingPage: React.FC = () => {
                 });
             } catch (notiErr) { console.warn(notiErr); }
 
-            // [SECURITY/UX] Clear Secret Note from State immediately
-            setNotes(prev => ({ ...prev, noteDetails: '' }));
+            // [UX] Update Local State to reflect append immediately (for history view)
+            setNotes(updatedNotes);
+            setNewSecretNote(''); // Clear input
 
             setShowSuccessModal(true);
         } catch (e: any) {
@@ -318,14 +341,26 @@ const InstructorRecordingPage: React.FC = () => {
                         </div>
 
                         <div className="flex flex-col gap-6">
-                            {/* Editor */}
+                            {/* History View (Read-Only) */}
+                            {notes.noteDetails && (
+                                <div className="bg-[#FAF8F5] p-5 rounded-3xl border border-[#EFE5D5] mb-4 overflow-y-auto max-h-60">
+                                    <h4 className="text-[10px] font-bold text-[#B0A18E] uppercase tracking-widest mb-3 sticky top-0 bg-[#FAF8F5] pb-2 border-b border-[#EFE5D5]/50">
+                                        기존 작성 이력
+                                    </h4>
+                                    <div className="text-sm leading-relaxed text-[#5C5042] whitespace-pre-wrap font-serif">
+                                        {notes.noteDetails}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* New Note Editor */}
                             <div className="flex-1">
                                 <textarea
                                     disabled={!isEditable}
-                                    className="w-full bg-white rounded-3xl p-5 border border-[#EFE5D5] focus:border-[#8C7B65] focus:ring-0 transition-all outline-none resize-none h-48 text-sm leading-relaxed text-[#5C5042] placeholder:text-[#B0A18E]/70"
-                                    placeholder="이곳에 작성된 내용은 회원에게 절대 공개되지 않습니다. (관리자 페이지에 자동 연동됨)"
-                                    value={notes.noteDetails}
-                                    onChange={e => setNotes({ ...notes, noteDetails: e.target.value })}
+                                    className="w-full bg-white rounded-3xl p-5 border border-[#EFE5D5] focus:border-[#8C7B65] focus:ring-0 transition-all outline-none resize-none h-32 text-sm leading-relaxed text-[#5C5042] placeholder:text-[#B0A18E]/70"
+                                    placeholder={notes.noteDetails ? "새로운 내용을 추가하세요. (기존 내용은 수정/삭제 불가능)" : "비밀노트 내용을 작성하세요."}
+                                    value={newSecretNote}
+                                    onChange={e => setNewSecretNote(e.target.value)}
                                     style={{ fontSize: '16px' }} // Prevent iOS Zoom
                                 />
                                 <div className="flex justify-end mt-4">
