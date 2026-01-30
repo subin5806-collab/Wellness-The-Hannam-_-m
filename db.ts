@@ -453,6 +453,14 @@ export const db = {
       const { data, error } = await supabase.from('hannam_care_records').select('*, note_details').eq('id', id).maybeSingle();
       if (error) throw error;
       return transformKeys(data, 'toCamel') as CareRecord;
+      if (error) throw error;
+      return transformKeys(data, 'toCamel') as CareRecord;
+    },
+    // [V3 Sync] Fetch by Reservation ID
+    getByReservationId: async (resId: string) => {
+      const { data, error } = await supabase.from('hannam_care_records').select('*').eq('reservation_id', resId).maybeSingle();
+      if (error) throw error;
+      return transformKeys(data, 'toCamel') as CareRecord;
     },
     getPendingSignatureCount: async () => {
       const { count } = await supabase.from('hannam_care_records').select('*', { count: 'exact', head: true }).eq('signature_status', 'pending');

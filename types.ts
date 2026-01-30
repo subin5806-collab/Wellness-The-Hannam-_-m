@@ -143,6 +143,7 @@ export interface CareRecord {
   noteSummary: string;
   noteDetails: string;
   noteRecommendation: string;
+  noteFutureRef?: string; // [V3] Added for Sync
   noteAuthorName?: string;
   noteUpdatedAt?: string;
   settledBy?: string;
@@ -159,29 +160,38 @@ export interface CareRecord {
 
 export interface AdminPrivateNote {
   id: string;
-  careRecordId: string;
-  adminEmail: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
+  noteRecommendations?: string;
+  noteFutureRef?: string; // [V3] Added for Sync
+  signatureData?: string;
+  signatureStatus?: 'pending' | 'completed';
+
+  // Note: Joined fields
+  instructorName?: string;
 }
 
 export interface Reservation {
   id: string;
-  date: string;
-  time: string;
   memberId: string;
+  membershipId?: string; // optional as it might be pure reservation
   programId: string;
-  managerId?: string;
-  adminId?: string; // [FIX] Fallback for legacy data
-  adminName?: string; // [FIX] Fallback for legacy data
-  status: 'RESERVED' | 'COMPLETED' | 'CANCELLED';
+  managerId: string; // The instructor/manager assigned
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  status: 'reserved' | 'completed' | 'canceled' | 'noshow';
+
+  // Notes
   noteSummary?: string;
   noteDetails?: string;
   noteRecommendation?: string;
-  noteAuthorName?: string;
-  noteUpdatedAt?: string;
+  noteFutureRef?: string; // [V3] Added for Sync
+
+  // Meta
   createdAt: string;
+
+  // Joined
+  memberName?: string;
+  programName?: string;
+  managerName?: string;
 }
 
 export interface Notification {

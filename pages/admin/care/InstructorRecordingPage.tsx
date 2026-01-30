@@ -24,6 +24,8 @@ const InstructorRecordingPage: React.FC = () => {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [history, setHistory] = useState<any[]>([]);
 
+    const [linkedCareRecordId, setLinkedCareRecordId] = useState<string | null>(null);
+
     useEffect(() => {
         if (resId) loadData();
     }, [resId]);
@@ -45,11 +47,12 @@ const InstructorRecordingPage: React.FC = () => {
                 }
             }
 
-            const [m, p, allProgs, historyData] = await Promise.all([
+            const [m, p, allProgs, historyData, linkedRecord] = await Promise.all([
                 db.members.getById(res.memberId),
                 db.master.programs.getAll(),
                 db.master.programs.getAll(),
-                db.careRecords.getByMemberId(res.memberId)
+                db.careRecords.getByMemberId(res.memberId),
+                db.careRecords.getByReservationId(resId!) // [SYNC] Check for Linked Care Record
             ]);
 
             setMember(m);
@@ -66,13 +69,25 @@ const InstructorRecordingPage: React.FC = () => {
             }));
             setHistory(enrichedHistory);
 
-            // Load existing notes
-            setNotes({
-                noteSummary: res.noteSummary || '',
-                noteDetails: res.noteDetails || '',
-                noteRecommendation: res.noteRecommendation || '',
-                noteFutureRef: res.noteFutureRef || ''
-            });
+            // [SYNC LOGIC] Priority: CareRecord (Admin Deduction) > Reservation (Pre-notes)
+            if (linkedRecord) {
+                console.log('>>> [SYNC] Linked Care Record Found. Using its data.', linkedRecord);
+                setLinkedCareRecordId(linkedRecord.id);
+                setNotes({
+                    noteSummary: linkedRecord.noteSummary || res.noteSummary || '',
+                    noteDetails: linkedRecord.noteDetails || res.noteDetails || '',
+                    noteRecommendation: linkedRecord.noteRecommendation || res.noteRecommendation || '',
+                    noteFutureRef: linkedRecord.noteFutureRef || res.noteFutureRef || ''
+                });
+            } else {
+                // No Care Record yet, load from Reservation
+                setNotes({
+                    noteSummary: res.noteSummary || '',
+                    noteDetails: res.noteDetails || '',
+                    noteRecommendation: res.noteRecommendation || '',
+                    noteFutureRef: res.noteFutureRef || ''
+                });
+            }
 
         } catch (e) {
             console.error(e);
@@ -104,13 +119,29 @@ const InstructorRecordingPage: React.FC = () => {
 
         setIsSaving(true);
         try {
+            // [FIX] Sanitized UUID: Remove 'DIR_' prefix if present
+            const safeAuthorId = currentAdmin.id.replace('DIR_', '');
+
+            // 1. Update Reservation (Always)
             await db.reservations.saveNotes(resId!, {
                 ...notes,
                 // [SECURITY] Strict Author Tracking
-                noteAuthorId: currentAdmin.id,
-                noteAuthorName: currentAdmin.name,
+                noteAuthorId: safeAuthorId,
+                noteAuthorName: currentAdmin.name, // Name is safe as string
                 noteUpdatedAt: new Date().toISOString()
             });
+
+            // 2. [SYNC] Update Care Record (if exists) - REAL-TIME SYNC
+            if (linkedCareRecordId) {
+                console.log('>>> [SYNC] Updating Linked Care Record also.');
+                await db.careRecords.update(linkedCareRecordId, {
+                    noteSummary: notes.noteSummary,
+                    noteDetails: notes.noteDetails,
+                    noteRecommendation: notes.noteRecommendation,
+                    noteFutureRef: notes.noteFutureRef
+                    // Note: We don't overwrite financial data here, only notes
+                });
+            }
 
             // Notification logic...
             try {
@@ -145,7 +176,29 @@ const InstructorRecordingPage: React.FC = () => {
     const isSecretNoteMasked = false; // We just rely on clearing the state on save.
 
     return (
-        <div className="min-h-screen bg-[#F5F5F5] font-sans pb-20">
+        <div className="min-h-screen bg-[#F9FAFB] pb-20">
+            {/* [UX] SUCCESS MODAL */}
+            {showSuccessModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[40px] p-10 flex flex-col items-center shadow-2xl animate-in zoom-in-95 duration-300 max-w-sm w-full mx-6">
+                        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6 text-emerald-600">
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-[#1A3C34] mb-2">저장 완료</h3>
+                        <p className="text-slate-500 text-sm font-medium mb-8 text-center">
+                            성공적으로 저장되었습니다.<br />
+                            <span className="text-xs text-red-400 mt-2 block">(보안을 위해 비밀노트 내용은 화면에서 숨겨졌습니다.)</span>
+                        </p>
+                        <button
+                            onClick={() => setShowSuccessModal(false)}
+                            className="w-full py-4 bg-[#1A3C34] text-white rounded-2xl font-bold text-sm shadow-lg hover:bg-[#152e28] transition-all"
+                        >
+                            확인
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* [HEADER] Instructor Portal Style */}
             <div className="bg-[#2F3A32] text-white p-6 pb-20 rounded-b-[40px] shadow-xl relative overflow-hidden mb-[-40px]">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
