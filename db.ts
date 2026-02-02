@@ -1536,17 +1536,10 @@ export const db = {
 
       const { data: { user } } = await supabase.auth.getUser();
 
-      // 1. [Single Device] Delete ALL existing tokens for this user/member
-      // If Supabase Auth User exists, delete by user_id
-      // If only Member (Phone Login), delete by member_id
-      const deleteQuery = supabase.from('hannam_fcm_tokens').delete();
-
-      if (user) {
-        await deleteQuery.eq('user_id', user.id);
-      } else {
-        // Fallback for Member Login (No Supabase Session)
-        await deleteQuery.eq('member_id', memberId);
-      }
+      // 1. [Multi-Device Support] DO NOT delete existing tokens.
+      // We want to keep tokens for all devices (PC, Mobile, Tablet) so all receive notifications.
+      // const deleteQuery = supabase.from('hannam_fcm_tokens').delete();
+      // ... deletion logic removed ...
 
       // 2. Upsert NEW Token
       const payload: any = {
