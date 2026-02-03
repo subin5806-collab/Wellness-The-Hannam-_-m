@@ -34,9 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!admin.apps.length) {
         const projectId = process.env.FIREBASE_PROJECT_ID;
         const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+        // [FIX] Auto-repair newline characters in Private Key to prevent 500 Errors
         const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
         if (!projectId || !clientEmail || !privateKey) {
+            console.error('[Push Init] Missing Credentials');
             return res.status(500).json({ error: 'Server Config Error: Missing Firebase Credentials' });
         }
 
@@ -110,24 +112,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             totalSuccess += responses.successCount;
             totalFailure += responses.failureCount;
 
-            // [LOGGING] Record to Notification Logs
-            const logsToInsert = responses.responses.map((resp, idx) => {
-                const target = chunk[idx];
-                return {
-                    receiver_id: target.memberId === 'UNKNOWN' ? null : target.memberId, // TEXT type
-                    receiver_phone: null, // Optional, can fetch if needed
-                    type: 'PUSH',
-                    trigger_type: 'MANUAL_PUSH',
-                    content: `[${title}] ${body}`,
-                    status: resp.success ? 'SUCCESS' : 'FAILED',
-                    error_message: resp.success ? null : (resp.error?.code || 'Unknown Error'),
-                    sent_at: new Date().toISOString()
-                };
-            });
+            // [LOGGING] Record to Notification Logs (Independent Try-Catch)
+            try {
+                const logsToInsert = responses.responses.map((resp, idx) => {
+                    const target = chunk[idx];
+                    return {
+                        receiver_id: target.memberId === 'UNKNOWN' ? null : target.memberId,
+                        receiver_phone: null,
+                        type: 'PUSH',
+                        trigger_type: 'MANUAL_PUSH',
+                        content: `[${title}] ${body}`,
+                        status: resp.success ? 'SUCCESS' : 'FAILED',
+                        error_message: resp.success ? null : (resp.error?.code || 'Unknown Error'),
+                        sent_at: new Date().toISOString()
+                    };
+                });
 
-            // Insert Logs
-            if (logsToInsert.length > 0) {
-                await supabase.from('notification_logs').insert(logsToInsert);
+                if (logsToInsert.length > 0) {
+                    const { error: logError } = await supabase.from('notification_logs').insert(logsToInsert);
+                    if (logError) console.error('[Push Log Error] Insert failed:', logError);
+                }
+            } catch (logErr) {
+                console.error('[Push Log Error] Unexpected logging failure:', logErr);
+                // [CRITICAL] Do NOT fail the main response just because logging failed.
             }
         }
 
