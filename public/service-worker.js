@@ -40,7 +40,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('notificationclick', (event) => {
     event.notification.close(); // Close the notification
 
-    const urlToOpen = event.notification.data?.url || '/';
+    const urlToOpen = (event.notification.data && event.notification.data.url) || '/';
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

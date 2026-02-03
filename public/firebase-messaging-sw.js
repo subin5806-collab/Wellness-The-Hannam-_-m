@@ -19,9 +19,9 @@ try {
     messaging.onBackgroundMessage((payload) => {
         console.log('[firebase-messaging-sw.js] Received background message ', payload);
         // Customize notification here
-        const notificationTitle = payload.notification?.title || 'Wellness The Hannam';
+        const notificationTitle = (payload.notification && payload.notification.title) || 'Wellness The Hannam';
         const notificationOptions = {
-            body: payload.notification?.body,
+            body: (payload.notification && payload.notification.body),
             icon: '/pwa-icon.png',
             data: payload.data // Pass data (url, image) to notification
         };
