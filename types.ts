@@ -197,12 +197,13 @@ export interface Reservation {
 export interface Notification {
   id: string;
   memberId: string;
-  type: 'POPUP' | 'ALERT' | 'CARE_REPORT' | 'PUSH';
+  type: 'POPUP' | 'ALERT' | 'CARE_REPORT' | 'PUSH' | 'INFO' | 'SIGNATURE_REQ';
   title: string;
   content: string;
   isRead: boolean;
   createdAt: string;
   sender?: string; // 발송자 기록용
+  link?: string; // [NEW] Deep Link URL
 }
 
 export interface AuditLog {

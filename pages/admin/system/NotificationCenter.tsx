@@ -42,13 +42,38 @@ export default function NotificationCenter() {
 
     useEffect(() => {
         if (activeTab === 'HISTORY') {
-            setIsLoading(true);
-            (db.notifications as any).getAllAdmin().then((data: any) => {
-                setHistory(data || []);
-                setIsLoading(false);
-            });
+            fetchHistory();
         }
     }, [activeTab]);
+
+    // [REALTIME] Admin History Live Update
+    useEffect(() => {
+        const channel = supabase.channel('admin_notification_history')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'hannam_notifications' },
+                (payload) => {
+                    console.log('[Realtime] New Notification:', payload);
+                    if (activeTab === 'HISTORY') {
+                        // Optimistic Update or Refetch
+                        fetchHistory();
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [activeTab]);
+
+    const fetchHistory = () => {
+        setIsLoading(true);
+        (db.notifications as any).getAllAdmin().then((data: any) => {
+            setHistory(data || []);
+            setIsLoading(false);
+        });
+    };
 
     const loadSettings = async () => {
         const { data } = await supabase.from('hannam_system_settings').select('setting_value').eq('setting_key', 'NOTIFICATION_CONFIG').single();

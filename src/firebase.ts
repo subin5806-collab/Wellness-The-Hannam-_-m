@@ -51,7 +51,7 @@ export const FcmService = {
 
     // 2. Foreground Message Listener
     onForegroundMessage: (callback: (payload: any) => void) => {
-        onMessage(messaging, (payload) => {
+        return onMessage(messaging, (payload) => {
             console.log("Foreground Message received: ", payload);
             callback(payload);
         });

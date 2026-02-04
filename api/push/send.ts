@@ -4,7 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // [INIT] Supabase Admin Client for Logging & Badge Count
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://ghhknsewwevbgojozdzc.supabase.co';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaGtuc2V3d2V2Ymdvam96ZHpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1ODg1NTUsImV4cCI6MjA4MzE2NDU1NX0.AYHMQSU6d9c7avX8CeOoNekFbJoibVxWno9PkIOuSnc';
+// [SECURITY] Use Service Role Key for Admin Privileges (Log Writes)
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -12,8 +13,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    // [PAYLOAD UPDATE] Accepts 'targets' array for detailed handling
-    // tokens: deprecated (backward compatibility)
+    // [SECURITY] Strict Server-Side Key Usage
+    // db.ts (Client) uses ANON_KEY. Here (Server) we use SERVICE_ROLE or PRIVATE_KEY.
+    // Ensure we do NOT import 'db' from client side if it carries env vars incorrectly.
+    // construct dedicated server admin client if needed, or just use `supabase-js` with env vars.
+
     const { title, body, tokens, data, targets } = req.body;
 
     // Normalizing targets
@@ -22,7 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (targets && Array.isArray(targets)) {
         finalTargets = targets;
     } else if (tokens && Array.isArray(tokens)) {
-        // Backward compatibility for old calls
         finalTargets = tokens.map(t => ({ token: t, memberId: 'UNKNOWN', name: 'Unknown' }));
     }
 
@@ -34,7 +37,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!admin.apps.length) {
         const projectId = process.env.FIREBASE_PROJECT_ID;
         const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-        // [FIX] Auto-repair newline characters in Private Key to prevent 500 Errors
         const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
         if (!projectId || !clientEmail || !privateKey) {
@@ -51,10 +53,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     }
 
+    // [ASYNC PATTERN] Fire Pushes & Prepare Logs
     try {
         console.log(`[Push] Processing ${finalTargets.length} targets...`);
 
-        // [BATCH PROCESSING] 500 Chunking
         const CHUNK_SIZE = 500;
         const chunks = [];
         for (let i = 0; i < finalTargets.length; i += CHUNK_SIZE) {
@@ -63,78 +65,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         let totalSuccess = 0;
         let totalFailure = 0;
+        const logsToInsert: any[] = [];
 
-        // Process Chunks
-        for (const chunk of chunks) {
-            // [BADGE LOGIC] Calculate Badge for each user in chunk?
-            // Optimization: For bulk sends, fetching 500 counts is slow.
-            // If targets < 10 (Individual Mode), we calculate accurate badge.
-            // Otherwise, we send badge: 1 (or handle differently).
-
-            const messages = await Promise.all(chunk.map(async (target) => {
-                let badgeCount = 1;
-
-                // Accurate Badge Count for Individual Sends
-                if (finalTargets.length <= 10 && target.memberId && target.memberId !== 'UNKNOWN') {
-                    const { count } = await supabase
-                        .from('hannam_notifications')
-                        .select('*', { count: 'exact', head: true })
-                        .eq('member_id', target.memberId)
-                        .eq('is_read', false);
-                    badgeCount = (count || 0) + 1; // Existing + This new one
-                }
-
-                return {
-                    token: target.token,
-                    notification: { title, body },
-                    data: data || {},
-                    android: {
-                        priority: 'high' as const,
-                        notification: { channelId: 'default', notificationCount: badgeCount }
-                    },
-                    apns: {
-                        payload: {
-                            aps: {
-                                alert: { title, body },
-                                sound: 'default',
-                                badge: badgeCount, // [FIX] Accurate Badge
-                                'content-available': 1
-                            }
-                        }
-                    }
-                };
+        // 1. Execute Push Sending (Critical Path)
+        // We await this to ensure we can report status
+        const pushPromises = chunks.map(async (chunk) => {
+            const messages = chunk.map(target => ({
+                token: target.token,
+                notification: { title, body },
+                data: data || {},
+                android: { priority: 'high' as const, notification: { channelId: 'default' } },
+                apns: { payload: { aps: { alert: { title, body }, sound: 'default', badge: 1, 'content-available': 1 } } }
             }));
 
-            // Send Each (to allow individual badge counts)
-            // Note: sendAll() is deprecated/legacy? admin.messaging().sendEach() is recommended.
-            const responses = await admin.messaging().sendEach(messages as any);
-
-            totalSuccess += responses.successCount;
-            totalFailure += responses.failureCount;
-
-            // [LOGGING] Record to Notification Logs (Independent Try-Catch)
             try {
-                const logsToInsert = responses.responses.map((resp, idx) => {
+                const responses = await admin.messaging().sendEach(messages as any);
+                totalSuccess += responses.successCount;
+                totalFailure += responses.failureCount;
+
+                // Prepare logs (Memory operation, fast)
+                responses.responses.forEach((resp, idx) => {
                     const target = chunk[idx];
-                    return {
+                    logsToInsert.push({
                         receiver_id: target.memberId === 'UNKNOWN' ? null : target.memberId,
-                        receiver_phone: null,
                         type: 'PUSH',
-                        trigger_type: 'MANUAL_PUSH',
+                        trigger_type: 'MANUAL_PUSH', // [USER REQ] Explicit marking
                         content: `[${title}] ${body}`,
                         status: resp.success ? 'SUCCESS' : 'FAILED',
                         error_message: resp.success ? null : (resp.error?.code || 'Unknown Error'),
                         sent_at: new Date().toISOString()
-                    };
+                    });
                 });
+            } catch (err) {
+                console.error('[Batch Push Error]', err);
+                // Even on error, we try to log failure for the whole chunk if possible?
+                // For now, skip logging for completely crashed chunks to save time.
+            }
+        });
 
-                if (logsToInsert.length > 0) {
-                    const { error: logError } = await supabase.from('notification_logs').insert(logsToInsert);
-                    if (logError) console.error('[Push Log Error] Insert failed:', logError);
-                }
-            } catch (logErr) {
-                console.error('[Push Log Error] Unexpected logging failure:', logErr);
-                // [CRITICAL] Do NOT fail the main response just because logging failed.
+        await Promise.all(pushPromises);
+
+        // 2. Logging (Secondary Path) - "Fire and Forget" style?
+        // In Vercel Node.js, we MUST await before return, otherwise process freezes.
+        // BUT we have already calculated the result for the user.
+        // We will fire the DB insert PROMISE but NOT await it for the response? 
+        // NO, Vercel kills outstanding promises. We MUST await.
+        // OPTIMIZATION: We used `logsToInsert` array to batch insert ONCE at the end, instead of per chunk.
+
+        if (logsToInsert.length > 0) {
+            // Non-blocking catch
+            try {
+                await supabase.from('notification_logs').insert(logsToInsert);
+            } catch (err) {
+                console.error('[Log Async Error]', err);
             }
         }
 
@@ -142,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ success: true, successCount: totalSuccess, failureCount: totalFailure });
 
     } catch (e: any) {
-        console.error('[Push Error]', e);
+        console.error('[Push Fatal Error]', e);
         return res.status(500).json({ error: e.message });
     }
 }

@@ -55,21 +55,8 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // NOTE: getPublicProfile is used in a previous step, but fetchData here uses getById. 
-      // I should update it to match the security requirement later if needed, but for now focus on build.
-      // Wait, MemberPortal.tsx was supposed to use getPublicProfile.
-      // The previous replace_file_content FAILED? 
-      // Ah, I tried to replace lines 128-141. Explicitly check if it worked?
-      // The view shows line 58: db.members.getById(memberId).
-      // So the previous edit might have failed or been overwritten?
-      // Or maybe lines 128-141 were somewhere else?
-      // Line 58 is inside fetchData.
-      // I will replace getById with getPublicProfile HERE      
-      // [SESSION VALIDATION] Trust the Profile ID (TEXT/Phone)
-      // We removed the UUID enforcement logic.
       try {
         const preProfile = await db.members.getPublicProfile(memberId);
-
         if (!preProfile || !preProfile.id) {
           console.error('[Session Check] No profile found for ID:', memberId);
           alert('회원 정보를 찾을 수 없습니다. 다시 로그인해 주세요.');
@@ -77,7 +64,6 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
           return;
         }
 
-        // Ensure Session ID matches the DB ID (Source of Truth)
         if (preProfile.id !== memberId) {
           console.warn('[Session Sync] Updating Session ID to match DB:', memberId, '->', preProfile.id);
           const saved = localStorage.getItem('hannam_auth_session');
@@ -92,8 +78,6 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
 
       } catch (e) {
         console.error('[Session Check] Error:', e);
-        // If network fails, we proceed to try Promise.all which might allow partial load?
-        // Or we could block. Given "User Experience", we try to proceed.
       }
 
       const [mInfo, allMs, careList, resList, allProgs, fetchedNotices, allNotis, allProducts] = await Promise.all([
@@ -107,14 +91,12 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
         db.master.membershipProducts.getAll()
       ]);
       setMember(mInfo);
-      // setMemberships(allMs || []); // REMOVED
       setHistory(careList || []);
       setReservations(resList || []);
       setPrograms(allProgs || []);
       setNotis(allNotis || []);
       setMsProducts(allProducts || []);
 
-      // Popup filter: "Don't show today" check
       const suppressedIds = JSON.parse(localStorage.getItem('suppressed_popups') || '{}');
       const today = new Date().toISOString().split('T')[0];
       const filteredNotices = (fetchedNotices || []).filter(n => !n.isPopup || suppressedIds[n.id] !== today);
@@ -122,7 +104,37 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
     } finally { setIsLoading(false); }
   }, [memberId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+
+    // [REALTIME] Notification Listening
+    const channel = db.supabase.channel(`member_noti:${memberId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hannam_notifications', filter: `member_id=eq.${memberId}` },
+        () => {
+          console.log('[Realtime] Personal Notification Update');
+          db.notifications.getByMemberId(memberId).then(setNotis);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hannam_notices' },
+        () => {
+          console.log('[Realtime] Notice Update');
+          db.notices.getActiveNotices().then(notices => {
+            const suppressedIds = JSON.parse(localStorage.getItem('suppressed_popups') || '{}');
+            const today = new Date().toISOString().split('T')[0];
+            setActiveNotices(notices.filter(n => !n.isPopup || suppressedIds[n.id] !== today));
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      db.supabase.removeChannel(channel);
+    };
+  }, [fetchData, memberId]);
 
   const { totalRemaining, memberships } = useBalanceEngine(memberId);
   const activeMs = memberships.find(m => m.status === 'active');
@@ -142,7 +154,7 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
     const endStr = thirtyDaysLater.toISOString().split('T')[0];
 
     return reservations
-      .filter(r => r.status === 'RESERVED' && r.date >= startStr && r.date <= endStr)
+      .filter(r => r.status === 'reserved' && r.date >= startStr && r.date <= endStr)
       .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   }, [reservations]);
 

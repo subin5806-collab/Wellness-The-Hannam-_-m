@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { db } from './db';
+import { db, supabase } from './db';
 import LoginPage from './pages/auth/LoginPage';
 import AdminDashboard from './pages/admin/dashboard/AdminDashboard';
 import MemberPortal from './pages/member/MemberPortal';
@@ -46,15 +46,41 @@ const App: React.FC = () => {
     init();
 
     // Listen for foreground messages -> Update Badge
-    FcmService.onForegroundMessage(async (payload) => {
+    const unsubscribeFcm = FcmService.onForegroundMessage(async (payload) => {
       console.log("Foreground Push:", payload);
-      // Refresh badge
       const saved = localStorage.getItem('hannam_auth_session');
       if (saved) {
         const session = JSON.parse(saved);
         if (session?.id) await updateBadge(session.id);
       }
     });
+
+    // [REALTIME] Listen for DB Inserts (Instant Red Dot)
+    let channel: any = null;
+    const setupRealtime = async () => {
+      const saved = localStorage.getItem('hannam_auth_session');
+      if (saved) {
+        const session = JSON.parse(saved);
+        if (session?.id) {
+          channel = supabase.channel('public:hannam_notifications')
+            .on(
+              'postgres_changes',
+              { event: 'INSERT', schema: 'public', table: 'hannam_notifications', filter: `member_id=eq.${session.id}` },
+              (payload) => {
+                console.log('[Realtime] New Notification for Me:', payload);
+                updateBadge(session.id);
+              }
+            )
+            .subscribe();
+        }
+      }
+    };
+    setupRealtime();
+
+    return () => {
+      if (unsubscribeFcm) unsubscribeFcm(); // Assuming FcmService returns unsubscribe
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   const updateBadge = async (memberId: string) => {
