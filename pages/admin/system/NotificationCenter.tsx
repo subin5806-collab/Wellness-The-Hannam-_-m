@@ -69,7 +69,7 @@ export default function NotificationCenter() {
 
     const fetchHistory = () => {
         setIsLoading(true);
-        (db.notifications as any).getAllAdmin().then((data: any) => {
+        (db as any).notifications.getAllAdmin().then((data: any) => {
             setHistory(data || []);
             setIsLoading(false);
         });
@@ -97,7 +97,7 @@ export default function NotificationCenter() {
         try {
             const [allMembers, tokens] = await Promise.all([
                 db.members.getAll(),
-                db.fcmTokens.getAllAdmin()
+                (db as any).fcmTokens.getAllAdmin()
             ]);
             setMembers(allMembers || []);
             setPushTokens(new Set(tokens || []));
@@ -201,7 +201,7 @@ export default function NotificationCenter() {
                     endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
                 };
 
-                const newNotice = await db.notices.add(noticeData);
+                const newNotice = await (db as any).notices.add(noticeData);
                 noticeId = newNotice?.id;
             }
 
@@ -625,7 +625,7 @@ export default function NotificationCenter() {
                                                     onClick={async () => {
                                                         if (confirm('이 알림을 삭제하시겠습니까?\n(회원 앱에서도 즉시 삭제됩니다)')) {
                                                             try {
-                                                                await db.notifications.delete(item.id);
+                                                                await (db as any).notifications.delete(item.id);
                                                                 setHistory(prev => prev.filter((h: any) => h.id !== item.id));
                                                             } catch (e) {
                                                                 alert('삭제 실패');
@@ -648,3 +648,4 @@ export default function NotificationCenter() {
         </div>
     );
 }
+

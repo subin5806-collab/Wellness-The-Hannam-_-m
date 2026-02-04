@@ -85,7 +85,7 @@ const App: React.FC = () => {
 
   const updateBadge = async (memberId: string) => {
     try {
-      const counts = await db.notifications.getBadgeCount(memberId);
+      const counts = await (db as any).notifications.getBadgeCount(memberId);
       console.log('[App] Badge Updated:', counts);
     } catch (e) {
       console.error('[App] Badge Update Failed:', e);

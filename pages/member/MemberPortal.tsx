@@ -376,109 +376,75 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
                 </button>
               </div>
 
-              <div className="flex p-1.5 bg-slate-100 rounded-[24px] mx-2 shadow-inner">
-                <button
-                  onClick={() => setNotiTab('ANNOUNCE')}
-                  className={`flex-1 py-4 text-[13px] font-bold rounded-[18px] transition-all ${notiTab === 'ANNOUNCE' ? 'bg-white text-[#1A3C34] shadow-sm scale-[1.02]' : 'text-slate-400'}`}
-                >
-                  공지사항
-                </button>
-                <button
-                  onClick={() => setNotiTab('PERSONAL')}
-                  className={`flex-1 py-4 text-[13px] font-bold rounded-[18px] transition-all relative ${notiTab === 'PERSONAL' ? 'bg-white text-[#1A3C34] shadow-sm scale-[1.02]' : 'text-slate-400'}`}
-                >
-                  개인 알림
-                  {notis.some(n => !n.isRead) && <span className="absolute top-3 right-8 w-1.5 h-1.5 bg-rose-400 rounded-full"></span>}
-                </button>
-              </div>
+              <div className="space-y-6 px-2 pb-24">
+                {/* Unified Notification List */}
+                {(() => {
+                  // Merge & Sort
+                  const mixedList = [
+                    ...activeNotices.map(n => ({ ...n, type: 'NOTICE', original: n, sortTime: n.createdAt })),
+                    ...notis.map(n => ({ ...n, type: 'PERSONAL', original: n, sortTime: n.createdAt }))
+                  ].sort((a, b) => new Date(b.sortTime || '').getTime() - new Date(a.sortTime || '').getTime());
 
-              <div className="space-y-4 px-2 pb-20">
-                {notiTab === 'ANNOUNCE' && (
-                  <div className="space-y-4">
-                    {activeNotices.map(notice => (
-                      <div
-                        key={notice.id}
-                        onClick={async () => {
-                          // [READ LOGIC] Mark as read on click
-                          if (!(notice as any).isRead) {
-                            await db.notices.markAsRead(member.id, notice.id);
-                            fetchData(); // Refresh badge
-                          }
-                        }}
-                        className={`bg-white p-8 rounded-[36px] border shadow-sm space-y-4 group cursor-pointer transition-all ${!(notice as any).isRead ? 'border-emerald-100 ring-1 ring-emerald-50' : 'border-slate-50 opacity-80'}`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            {!(notice as any).isRead && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>}
-                            <span className={`px-2.5 py-1 text-[8px] font-bold rounded-lg uppercase tracking-widest ${notice.category === 'URGENT' ? 'bg-rose-50 text-rose-500' : 'bg-[#1A3C34] text-white'}`}>
-                              {notice.category}
-                            </span>
-                          </div>
-                          <span className="text-[9px] text-slate-300 font-bold tabular-nums">{notice.createdAt?.split('T')[0]}</span>
-                        </div>
-                        <div className="space-y-2">
-                          <h5 className={`text-[17px] font-bold transition-colors ${!(notice as any).isRead ? 'text-[#1A3C34]' : 'text-slate-400'}`}>{notice.title}</h5>
-                          {notice.imageUrl && <div className="w-full aspect-video rounded-2xl bg-slate-50 overflow-hidden mb-2"><img src={notice.imageUrl} className="w-full h-full object-cover" /></div>}
-                          <p className={`text-[13px] leading-relaxed font-medium ${!(notice as any).isRead ? 'text-slate-500' : 'text-slate-400'}`}>{notice.content}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {activeNotices.length === 0 && <div className="py-24 text-center text-slate-300 italic font-serif text-lg">새로운 공지가 없습니다.</div>}
-                  </div>
-                )}
-
-                {notiTab === 'PERSONAL' && (
-                  <div className="space-y-4">
-                    {/* The following block of code was inserted here based on the user's instruction.
-                      It appears to be a JavaScript logic block that was intended to be placed
-                      outside of JSX, likely in a data fetching function or useEffect.
-                      However, as per the instruction, it's placed exactly where specified. */}
-                    {/*
-                  setIsLoading(true);
-                  try {
-                    const profile = await db.members.getPublicProfile(memberId);
-                    if (!profile) throw new Error('Member not found');
-                    setMember(profile);
-
-                    // Load notices
-                    const notices = await db.notices.getActiveNotices();
-                    // Filter out confirmed notices
-                    const confirmed = new Set(profile.confirmedNoticeIds || []);
-                    setActiveNotices(notices.filter(n => !confirmed.has(n.id)));
-
-                  } catch (e: any) {
-                    console.error('Fetch Error:', e);
-                    if (e.message !== 'Member not found') alert('데이터 로드 실패: ' + e.message);
-                    if (onLogout) onLogout();
-                  } finally {
-                    setIsLoading(false);
+                  if (mixedList.length === 0) {
+                    return <div className="py-24 text-center text-slate-300 italic font-serif text-lg">알림이 없습니다.</div>;
                   }
-                  */}
-                    {notis.map(noti => (
+
+                  return mixedList.map((item: any) => {
+                    const isNotice = item.type === 'NOTICE';
+                    const notice = isNotice ? item.original as Notice : null;
+                    const noti = !isNotice ? item.original as NotificationData : null;
+
+                    const isRead = isNotice
+                      ? (notice as any).isRead
+                      : (noti as any).isRead;
+
+                    return (
                       <div
-                        key={noti.id}
+                        key={`${item.type}-${item.id}`}
                         onClick={async () => {
-                          if (!noti.isRead) {
-                            await db.notifications.markAsRead(noti.id);
+                          if (!isRead) {
+                            if (isNotice) {
+                              await db.notices.markAsRead(member.id, item.id);
+                              // Local State Update via Refetch or Optimistic
+                              setActiveNotices(prev => prev.map(p => p.id === item.id ? { ...p, isRead: true } : p));
+                            } else {
+                              await db.notifications.markAsRead(item.id);
+                              setNotis(prev => prev.map(p => p.id === item.id ? { ...p, isRead: true } : p));
+                            }
                             fetchData();
                           }
                         }}
-                        className={`bg-white p-8 rounded-[36px] border flex gap-6 items-start transition-all ${!noti.isRead ? 'border-emerald-100 shadow-md ring-1 ring-emerald-50' : 'border-slate-50'}`}
+                        className={`bg-white p-6 rounded-[28px] border relative overflow-hidden transition-all active:scale-[0.98] ${!isRead ? 'border-emerald-100 ring-1 ring-emerald-50 shadow-sm' : 'border-slate-50 opacity-90'}`}
                       >
-                        <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!noti.isRead ? 'bg-emerald-500' : 'bg-slate-200'}`}></div>
-                        <div className="space-y-2 flex-1">
+                        {/* Unread Indicator */}
+                        {!isRead && <div className="absolute top-6 left-6 w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>}
+
+                        <div className="pl-6 space-y-3">
                           <div className="flex justify-between items-center">
-                            <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">{noti.type}</span>
-                            <span className="text-[9px] text-slate-300 font-bold tabular-nums">{noti.createdAt?.split('T')[0]}</span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest ${isNotice ? 'bg-indigo-50 text-indigo-500' : 'bg-orange-50 text-orange-500'}`}>
+                              {isNotice ? '공지사항' : '알림'}
+                            </span>
+                            <span className="text-[10px] text-slate-300 font-bold tabular-nums">{item.sortTime?.substring(0, 10).replace(/-/g, '.')}</span>
                           </div>
-                          <h5 className={`text-[15px] font-bold ${!noti.isRead ? 'text-[#1A3C34]' : 'text-slate-400'}`}>{noti.title}</h5>
-                          <p className="text-[13px] text-slate-400 font-medium leading-relaxed">{noti.content}</p>
+
+                          <div className="space-y-1">
+                            <h5 className={`text-[15px] font-bold leading-snug ${!isRead ? 'text-[#1A3C34]' : 'text-slate-400'}`}>{item.title}</h5>
+                            <p className={`text-[13px] leading-relaxed whitespace-pre-wrap ${!isRead ? 'text-slate-600' : 'text-slate-400'}`}>
+                              {item.content}
+                            </p>
+                          </div>
+
+                          {/* Notice Image Preview */}
+                          {isNotice && notice.imageUrl && (
+                            <div className="mt-3 rounded-xl overflow-hidden h-32 bg-slate-50 border border-slate-100">
+                              <img src={notice.imageUrl} className="w-full h-full object-cover" alt="Notice Attachment" />
+                            </div>
+                          )}
                         </div>
                       </div>
-                    ))}
-                    {notis.length === 0 && <div className="py-24 text-center text-slate-300 italic font-serif text-lg">개별 수신 메시지가 없습니다.</div>}
-                  </div>
-                )}
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}

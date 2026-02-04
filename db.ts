@@ -605,13 +605,27 @@ export const db = {
         );
 
         // Notify Member (Non-blocking allowed, but let's await for safety)
-        await db.notifications.add({
+        await (db as any).notifications.add({
           memberId: record.memberId,
           type: 'SIGNATURE_REQ',
           title: '케어 서비스 서명 요청',
           content: `${record.productName || '웰니스 케어'} 이용이 완료되었습니다. 내역을 확인하고 서명해 주세요.`,
+          link: '/member/care-history',
           isRead: false
         });
+
+        // [USER REQ] Auto-Push Trigger (Client-Side Fire-and-Forget)
+        fetch('/api/push/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            target: { type: 'specific', id: record.memberId }, // [FIX] Use specific target
+            title: '케어 서비스 서명 요청',
+            body: `${record.productName || '웰니스 케어'} 이용이 완료되었습니다. 내역을 확인하고 서명해 주세요.`,
+            link: '/member/care-history'
+          })
+        }).catch(err => console.warn('[AutoPush] Failed to trigger push:', err));
+
       } catch (e) {
         // [ROLLBACK STEP 2 & 1] Log Failed -> Undo Record & Balance
         console.error('CRITICAL: Logging failed. Rolling back everything.', e);
