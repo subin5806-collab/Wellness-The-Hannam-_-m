@@ -2,11 +2,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { Member, Notice, Membership, CareRecord, Program, Admin, Reservation, Manager, Notification, Contract, MembershipProduct, ContractTemplate, AuditLog, SystemBackup, AdminPrivateNote, Category } from './types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ghhknsewwevbgojozdzc.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://ghhknsewwevbgojozdzc.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
 if (!supabaseAnonKey) {
-  console.error('CRITICAL: VITE_SUPABASE_ANON_KEY is missing. Database connection will fail.');
+  console.error('CRITICAL: Supabase Key Missing. Checked: VITE_SUPABASE_ANON_KEY, SUPABASE_ANON_KEY');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
