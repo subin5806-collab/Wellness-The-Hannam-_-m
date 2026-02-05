@@ -2,7 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// [DEPLOYMENT TRIGGER] Credentials Updated by User (2026-02-05)
+// [DEPLOYMENT TRIGGER] Debug Logging Added (2026-02-05 20:30)
 console.log('[System] Hard Delete Service initialized. Waiting for requests...');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -22,12 +22,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             || process.env.NEXT_PUBLIC_SUPABASE_URL
             || '';
 
-        const supabaseServiceKey = (
-            process.env.SUPABASE_SERVICE_ROLE_KEY ||
-            process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
-            process.env.SERVICE_ROLE_KEY ||
-            ''
-        ).trim();
+        // [DEBUG] Identify Key Source & Value
+        let keySource = 'NONE';
+        let supabaseServiceKey = '';
+
+        if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            keySource = 'SUPABASE_SERVICE_ROLE_KEY';
+            supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        } else if (process.env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
+            keySource = 'VITE_SUPABASE_SERVICE_ROLE_KEY';
+            supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+        } else if (process.env.SERVICE_ROLE_KEY) {
+            keySource = 'SERVICE_ROLE_KEY';
+            supabaseServiceKey = process.env.SERVICE_ROLE_KEY;
+        }
+
+        supabaseServiceKey = supabaseServiceKey.trim();
+
+        // [CRITICAL LOGGING]
+        console.log(`[HardDelete] Key Source: ${keySource}`);
+        console.log(`[HardDelete] Key Length: ${supabaseServiceKey.length}`);
+
+        if (supabaseServiceKey.length > 0 && supabaseServiceKey.length < 250) {
+            console.error(`[CRITICAL] Key length (${supabaseServiceKey.length}) suggests ANON KEY! Expected > 300.`);
+        }
 
         if (!supabaseUrl || !supabaseServiceKey) {
             console.error('[HardDelete] Missing Server Credentials');
