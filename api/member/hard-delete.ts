@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { Buffer } from 'node:buffer';
 
-// [DEPLOYMENT TRIGGER] Remove Notes Deletion (2026-02-05 22:06)
+// [DEPLOYMENT TRIGGER] Add Log Deletion (2026-02-05 22:19)
 console.log('[System] Hard Delete Service initialized. Waiting for requests...');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -178,6 +178,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 2. Delete Personal Data
         await safeDelete('hannam_fcm_tokens');
         await safeDelete('hannam_notifications');
+        // [FIX] Delete Notification Logs (Foreign Key Block)
+        await safeDelete('notification_logs', 'receiver_id');
         // [FIX] 'hannam_admin_private_notes' has NO member_id column. 
         // It is linked to care_record_id and will cascade delete automatically.
         // removing explicit delete to avoid 42703 error.
