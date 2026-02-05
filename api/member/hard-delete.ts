@@ -2,7 +2,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
-// [DEPLOYMENT TRIGGER] Debug Logging Added (2026-02-05 20:30)
+// [DEPLOYMENT TRIGGER] JWT Diagnostics Added (2026-02-05 21:22)
 console.log('[System] Hard Delete Service initialized. Waiting for requests...');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -42,6 +42,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // [CRITICAL LOGGING]
         console.log(`[HardDelete] Key Source: ${keySource}`);
         console.log(`[HardDelete] Key Length: ${supabaseServiceKey.length}`);
+
+        // [JWT DIAGNOSTICS] Decode "role" claim
+        try {
+            if (supabaseServiceKey.includes('.')) {
+                // Typical JWT format: header.payload.signature
+                const payloadPart = supabaseServiceKey.split('.')[1];
+                // Base64 Decode
+                const decodedPayload = JSON.parse(Buffer.from(payloadPart, 'base64').toString('utf-8'));
+                console.log(`[HardDelete] Key Role (Decoded): ${decodedPayload.role}`);
+
+                if (decodedPayload.role !== 'service_role') {
+                    console.error(`[CRITICAL] WRONG KEY TYPE DETECTED! Role is '${decodedPayload.role}', expected 'service_role'.`);
+                }
+            } else {
+                console.error('[HardDelete] Key is NOT a valid JWT format (no dots).');
+            }
+        } catch (e) {
+            console.error('[HardDelete] Failed to decode JWT:', e);
+        }
 
         if (supabaseServiceKey.length > 0 && supabaseServiceKey.length < 250) {
             console.error(`[CRITICAL] Key length (${supabaseServiceKey.length}) suggests ANON KEY! Expected > 300.`);
