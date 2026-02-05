@@ -49,31 +49,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log(`[HardDelete] Starting digital incineration for member: ${memberId}`);
 
-        // 1. Anonymize Admin Logs
-        await supabase.from('hannam_admin_action_logs').update({ member_id: null, details: 'Deleted User (Anonymized)' }).eq('member_id', memberId);
+        // Helper to safely delete and report error
+        const safeDelete = async (table: string, column: string = 'member_id') => {
+            const { error } = await supabase.from(table).delete().eq(column, memberId);
+            if (error) {
+                console.error(`[HardDelete] Failed to delete from ${table}:`, error);
+                throw new Error(`Deletion Error (${table}): ${error.message} (${error.code})`);
+            }
+        };
+
+        // 1. Anonymize Admin Logs (Update, not delete)
+        const { error: logError } = await supabase.from('hannam_admin_action_logs').update({ member_id: null, details: 'Deleted User (Anonymized)' }).eq('member_id', memberId);
+        if (logError) throw new Error(`Log Anonymization Error: ${logError.message}`);
+
         await supabase.from('hannam_admin_action_logs').update({ target_member_id: null, details: 'Target Deleted (Anonymized)' }).eq('target_member_id', memberId);
 
-        // 2. Delete Personal Data (Cascade manually for safety)
-        await supabase.from('hannam_fcm_tokens').delete().eq('member_id', memberId);
-        await supabase.from('hannam_notifications').delete().eq('member_id', memberId);
-        await supabase.from('hannam_admin_private_notes').delete().eq('member_id', memberId);
+        // 2. Delete Personal Data
+        await safeDelete('hannam_fcm_tokens');
+        await safeDelete('hannam_notifications');
+        await safeDelete('hannam_admin_private_notes');
 
         // 3. Delete Core Data
-        await supabase.from('hannam_care_records').delete().eq('member_id', memberId);
-        await supabase.from('hannam_reservations').delete().eq('member_id', memberId);
-        await supabase.from('hannam_contracts').delete().eq('member_id', memberId);
-        await supabase.from('hannam_memberships').delete().eq('member_id', memberId);
+        await safeDelete('hannam_care_records');
+        await safeDelete('hannam_reservations');
+        await safeDelete('hannam_contracts');
+        await safeDelete('hannam_memberships');
 
-        // 4. Delete Member
+        // 4. Delete Member (Result Check)
         const { error: deleteError } = await supabase.from('hannam_members').delete().eq('id', memberId);
 
-        if (deleteError) throw deleteError;
+        if (deleteError) {
+            console.error('[HardDelete] Member Deletion Failed:', deleteError);
+            throw new Error(`Member Deletion Failed: ${deleteError.message} (${deleteError.code})`);
+        }
 
         console.log(`[HardDelete] Success for ${memberId}`);
         return res.status(200).json({ success: true, message: 'Member permanently deleted' });
 
     } catch (error: any) {
         console.error('[HardDelete] Fatal Error:', error);
-        return res.status(500).json({ error: error.message || 'Internal Server Error' });
+        return res.status(500).json({
+            error: error.message || 'Internal Server Error',
+            stack: error.stack // Optional: for debugging
+        });
     }
 }
