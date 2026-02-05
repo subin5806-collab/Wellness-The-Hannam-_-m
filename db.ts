@@ -295,7 +295,15 @@ export const db = {
         body: JSON.stringify({ memberId: id })
       });
 
-      const result = await res.json();
+      let result;
+      try {
+        result = await res.json();
+      } catch (e) {
+        // [FIX] Handle Server Crash (HTML/Text Response)
+        const text = await res.text().catch(() => 'No Content');
+        console.error('[Hard Delete] Non-JSON Response:', text);
+        throw new Error(`서버 오류 발생 (응답 형식 불일치): ${text.substring(0, 100)}...`);
+      }
 
       if (!res.ok) {
         // Map API error to Supabase-like error object
