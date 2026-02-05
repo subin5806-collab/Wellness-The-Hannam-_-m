@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { Buffer } from 'node:buffer';
 
-// [DEPLOYMENT TRIGGER] Column Name Fix (2026-02-05 22:00)
+// [DEPLOYMENT TRIGGER] Remove Notes Deletion (2026-02-05 22:06)
 console.log('[System] Hard Delete Service initialized. Waiting for requests...');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -178,8 +178,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 2. Delete Personal Data
         await safeDelete('hannam_fcm_tokens');
         await safeDelete('hannam_notifications');
-        // [FIX] 'hannam_admin_private_notes' uses 'target_member_id', not 'member_id'
-        await safeDelete('hannam_admin_private_notes', 'target_member_id');
+        // [FIX] 'hannam_admin_private_notes' has NO member_id column. 
+        // It is linked to care_record_id and will cascade delete automatically.
+        // removing explicit delete to avoid 42703 error.
 
         // 3. Delete Core Data (Aggressive Cascade)
         // Try deleting everything related, suppressing 404s/errors for non-existent tables if needed?
