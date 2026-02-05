@@ -19,22 +19,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             || process.env.NEXT_PUBLIC_SUPABASE_URL
             || '';
 
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-            || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-            || process.env.SERVICE_ROLE_KEY
-            || '';
+        const supabaseServiceKey = (
+            process.env.SUPABASE_SERVICE_ROLE_KEY ||
+            process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+            process.env.SERVICE_ROLE_KEY ||
+            ''
+        ).trim();
 
         if (!supabaseUrl || !supabaseServiceKey) {
             console.error('[HardDelete] Missing Server Credentials');
 
-            // [DEBUG] List available keys (security safe)
-            const availableEnvKeys = Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('VITE'));
+            // [DEBUG] List available keys with value metadata (security safe)
+            const availableEnvKeys = Object.keys(process.env)
+                .filter(k => k.includes('SUPABASE') || k.includes('VITE'))
+                .map(k => ({
+                    key: k,
+                    length: process.env[k]?.length || 0,
+                    preview: process.env[k] ? `${process.env[k]?.substring(0, 3)}...` : 'EMPTY'
+                }));
+
             console.error('Available Environment Keys:', availableEnvKeys);
 
             return res.status(500).json({
                 error: 'Missing Supabase Credentials',
                 details: 'Please define SUPABASE_SERVICE_ROLE_KEY in Vercel.',
-                debug_available_keys: availableEnvKeys
+                debug_env_metadata: availableEnvKeys
             });
         }
 
