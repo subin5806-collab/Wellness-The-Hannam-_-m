@@ -2,6 +2,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+// [DEPLOYMENT TRIGGER] Credentials Updated by User (2026-02-05)
+console.log('[System] Hard Delete Service initialized. Waiting for requests...');
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS Support
     res.setHeader('Access-Control-Allow-Credentials', 'true');
