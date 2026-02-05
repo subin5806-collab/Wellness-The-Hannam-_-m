@@ -1045,379 +1045,324 @@ export const db = {
         createdAt: new Date().toISOString()
       }, 'toSnake')]);
     }
-  },
-  verifyConnection: async () => {
-    try {
-      // 1. Test Read
-      const { data: readData, error: readError } = await supabase.from('hannam_membership_products').select('count').limit(1).single();
-      if (readError && readError.code === 'PGRST116') { /* No rows found is okay for count */ }
-      else if (readError) throw new Error(`Read Check Failed: ${readError.message}`);
-
-      // 2. Test Write (Audit Log)
-      const testId = `TEST-${Date.now()}`;
-      await db.system.logAdminAction('SYSTEM_CHECK', null, 'Connection Verification', 'none', null, { check_id: testId });
-
-      // 3. Test Delete (Cleanup)
-      const { error: deleteError } = await supabase.from('hannam_admin_action_logs').delete().eq('id', testId);
-      if (deleteError) throw new Error(`Delete Check Failed: ${deleteError.message}`);
-
-      return { success: true, message: 'All systems operational (Read/Write/Delete confirmed)' };
-    } catch (e: any) {
-      console.error('System Check Error:', e);
-      return { success: false, message: e.message };
-    }
-  },
-  createFullBackup: async (adminEmail: string) => {
-    try {
-      // 1. Fetch All Data
-      // Use Promise.all for concurrency
-      const [
-        members, memberships, careRecords, reservations, products, managers, admins, notices, categories, contracts, programs,
-        // New additions for completeness
-        rawNotes, rawNotis, rawLogs
-      ] = await Promise.all([
-        db.members.getAll(),
-        db.memberships.getAll(),
-        db.careRecords.getAll(),
-        db.reservations.getAll(),
-        db.master.membershipProducts.getAll(),
-        db.master.managers.getAll(),
-        db.admins.getAll(),
-        db.notices.getAll(),
-        db.categories.getAll(),
-        db.contracts.getAll(),
-        db.master.programs.getAll(),
-        // Raw fetches for auxiliary tables
-        supabase.from('hannam_admin_private_notes').select('*'),
-        supabase.from('hannam_notifications').select('*'),
-        supabase.from('hannam_admin_action_logs').select('*')
-      ]);
-
-      // Transform raw fetches to CamelCase
-      const privateNotes = transformKeys(rawNotes.data || [], 'toCamel');
-      const notifications = transformKeys(rawNotis.data || [], 'toCamel');
-      const actionLogs = transformKeys(rawLogs.data || [], 'toCamel');
-
-      const fullBackup = {
-        metadata: {
-          timestamp: new Date().toISOString(),
-          creator: adminEmail,
-          version: '1.1' // Bump version
-        },
-        data: {
-          members, memberships, careRecords, reservations, products, managers, admins, notices, categories, contracts, programs,
-          privateNotes, notifications, actionLogs
-        }
-      };
-
-      const jsonString = JSON.stringify(fullBackup, null, 2);
-      const fileName = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-
-      // 2. Upload to Storage (bucket 'backups' assumed)
-      const { error: uploadError } = await supabase.storage.from('backups').upload(fileName, new Blob([jsonString], { type: 'application/json' }), { upsert: true });
-
-      // 3. Save Metadata
-      await db.system.backups.add({
-        backupName: fileName,
-        backupData: fullBackup,
-        backupSize: jsonString.length,
-        adminEmail
-      });
-
-      return { success: true, data: fullBackup, fileName };
-    } catch (e: any) {
-      throw new Error(`백업 본본 생성 실패: ${e.message}`);
-    }
-  },
-  restoreFromBackup: async (json: any) => {
-    // Upsert logic. Heavy operation.
-    const {
-      members, memberships, careRecords, reservations, products, managers, categories, notices, contracts, programs,
-      privateNotes, notifications, actionLogs
-    } = json.data;
-
-    // 1. Members
-    if (members?.length) {
-      const { error } = await supabase.from('hannam_members').upsert(transformKeys(members, 'toSnake'), { onConflict: 'id' });
-      if (error) throw new Error('회원 복구 실패: ' + error.message);
-    }
-
-    // 2. Dependencies
-    if (categories?.length) await supabase.from('hannam_categories').upsert(transformKeys(categories, 'toSnake'), { onConflict: 'id' });
-    if (products?.length) await supabase.from('hannam_membership_products').upsert(transformKeys(products, 'toSnake'), { onConflict: 'id' });
-    if (managers?.length) await supabase.from('hannam_managers').upsert(transformKeys(managers, 'toSnake'), { onConflict: 'id' });
-    if (programs?.length) await supabase.from('hannam_programs').upsert(transformKeys(programs, 'toSnake'), { onConflict: 'id' });
-    if (notices?.length) await supabase.from('hannam_notices').upsert(transformKeys(notices, 'toSnake'), { onConflict: 'id' });
-    if (contracts?.length) await supabase.from('hannam_contracts').upsert(transformKeys(contracts, 'toSnake'), { onConflict: 'id' });
-
-    // 3. Core Data
-    if (memberships?.length) await supabase.from('hannam_memberships').upsert(transformKeys(memberships, 'toSnake'), { onConflict: 'id' });
-    if (reservations?.length) await supabase.from('hannam_reservations').upsert(transformKeys(reservations, 'toSnake'), { onConflict: 'id' });
-    if (careRecords?.length) await supabase.from('hannam_care_records').upsert(transformKeys(careRecords, 'toSnake'), { onConflict: 'id' });
-
-    // 4. Auxiliary Data
-    if (privateNotes?.length) await supabase.from('hannam_admin_private_notes').upsert(transformKeys(privateNotes, 'toSnake'), { onConflict: 'id' });
-    if (notifications?.length) await supabase.from('hannam_notifications').upsert(transformKeys(notifications, 'toSnake'), { onConflict: 'id' });
-    if (actionLogs?.length) await supabase.from('hannam_admin_action_logs').upsert(transformKeys(actionLogs, 'toSnake'), { onConflict: 'id' });
-    return { success: true };
-  },
-  processCsvMigration: async (rows: any[]) => {
-    let successCount = 0;
-    let errors: string[] = [];
-
-    // [CSV Structure matches Template]
-    // Name, Phone, Gender, Birth, Email, RegDate, Product, Paid, Used, Balance, MsDate, Memo
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      if (!row[0] || !row[1]) continue; // Skip empty rows
-
-      const [name, phone, gender, birth, email, regDate, prodName, paidVal, usedVal, balVal, msRegDate, memo] = row;
-      const paid = Number(paidVal?.replace(/[^0-9]/g, '')) || 0;
-      const used = Number(usedVal?.replace(/[^0-9]/g, '')) || 0;
-      // Balance is calculated, but strictly we trust Paid - Used
-
+    ,
+    verifyConnection: async () => {
       try {
-        // 1. Member (Upsert-ish) using add() which handles checks
-        // Note: add() creates ID from phone. 
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
-        let memberId = cleanPhone;
+        // 1. Test Read
+        const { data: readData, error: readError } = await supabase.from('hannam_membership_products').select('count').limit(1).single();
+        if (readError && readError.code === 'PGRST116') { /* No rows found is okay for count */ }
+        else if (readError) throw new Error(`Read Check Failed: ${readError.message}`);
 
-        // Check existence
-        const { data: existing } = await supabase.from('hannam_members').select('id').eq('id', cleanPhone).maybeSingle();
-        if (!existing) {
-          const newMember = await db.members.add({
-            name, phone: cleanPhone, gender: gender === '남성' ? '남성' : '여성', birthDate: birth || '1900-01-01', email: email || '', adminMemo: memo, createdAt: regDate
-          });
-          memberId = newMember.id;
-        } else {
-          // Update memo if exists?
-          if (memo) await db.members.update(memberId, { adminMemo: memo });
-        }
+        // 2. Test Write (Audit Log)
+        const testId = `TEST-${Date.now()}`;
+        await db.system.logAdminAction('SYSTEM_CHECK', null, 'Connection Verification', 'none', null, { check_id: testId });
 
-        // 2. Membership
-        if (prodName) {
-          // Create Membership via TopUp (Simulated) or Direct Insert
-          // Direct Insert is better to set specific used_amount
-          const msId = crypto.randomUUID();
-          const { error: msError } = await supabase.from('hannam_memberships').insert([transformKeys({
-            id: msId,
-            memberId,
-            productId: null, // Unknown product ID, just text
-            productName: prodName,
-            totalAmount: paid,
-            usedAmount: used,
-            remainingAmount: paid - used,
-            status: 'active',
-            expiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(), // Default 1 year
-            createdAt: msRegDate || new Date().toISOString()
-          }, 'toSnake')]);
+        // 3. Test Delete (Cleanup)
+        const { error: deleteError } = await supabase.from('hannam_admin_action_logs').delete().eq('id', testId);
+        if (deleteError) throw new Error(`Delete Check Failed: ${deleteError.message}`);
 
-          if (msError) throw msError;
-
-          // 3. Legacy Care Record (if used > 0)
-          if (used > 0) {
-            await supabase.from('hannam_care_records').insert([transformKeys({
-              id: crypto.randomUUID(),
-              memberId,
-              membershipId: msId,
-              programId: 'MIGRATION_LEGACY', // Placeholder
-              originalPrice: used,
-              discountRate: 0,
-              finalPrice: used,
-              balanceAfter: paid - used,
-              noteSummary: 'Legacy Data Migration',
-              noteDetails: 'Previous system usage history migrated via Bulk Upload.',
-              signatureStatus: 'completed',
-              date: new Date().toISOString().split('T')[0],
-              createdAt: new Date().toISOString()
-            }, 'toSnake')]);
-          }
-        }
-        successCount++;
+        return { success: true, message: 'All systems operational (Read/Write/Delete confirmed)' };
       } catch (e: any) {
-        errors.push(`Row ${i + 1} (${name}): ${e.message}`);
+        console.error('System Check Error:', e);
+        return { success: false, message: e.message };
       }
-    }
-    return { successCount, errors };
+    },
+    createFullBackup: async (adminEmail: string) => {
+      try {
+        // 1. Fetch All Data
+        // Use Promise.all for concurrency
+        const [
+          members, memberships, careRecords, reservations, products, managers, admins, notices, categories, contracts, programs,
+          // New additions for completeness
+          rawNotes, rawNotis, rawLogs
+        ] = await Promise.all([
+          db.members.getAll(),
+          db.memberships.getAll(),
+          db.careRecords.getAll(),
+          db.reservations.getAll(),
+          db.master.membershipProducts.getAll(),
+          db.master.managers.getAll(),
+          db.admins.getAll(),
+          db.notices.getAll(),
+          db.categories.getAll(),
+          db.contracts.getAll(),
+          db.master.programs.getAll(),
+          // Raw fetches for auxiliary tables
+          supabase.from('hannam_admin_private_notes').select('*'),
+          supabase.from('hannam_notifications').select('*'),
+          supabase.from('hannam_admin_action_logs').select('*')
+        ]);
+
+        // Transform raw fetches to CamelCase
+        const privateNotes = transformKeys(rawNotes.data || [], 'toCamel');
+        const notifications = transformKeys(rawNotis.data || [], 'toCamel');
+        const actionLogs = transformKeys(rawLogs.data || [], 'toCamel');
+
+        const fullBackup = {
+          metadata: {
+            timestamp: new Date().toISOString(),
+            creator: adminEmail,
+            version: '1.1' // Bump version
+          },
+          data: {
+            members, memberships, careRecords, reservations, products, managers, admins, notices, categories, contracts, programs,
+            privateNotes, notifications, actionLogs
+          }
+        };
+
+        const jsonString = JSON.stringify(fullBackup, null, 2);
+        const fileName = `backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+
+        // 2. Upload to Storage (bucket 'backups' assumed)
+        const { error: uploadError } = await supabase.storage.from('backups').upload(fileName, new Blob([jsonString], { type: 'application/json' }), { upsert: true });
+
+        // 3. Save Metadata
+        await db.system.backups.add({
+          backupName: fileName,
+          backupData: fullBackup,
+          backupSize: jsonString.length,
+          adminEmail
+        });
+
+        return { success: true, data: fullBackup, fileName };
+      } catch (e: any) {
+        throw new Error(`백업 본본 생성 실패: ${e.message}`);
+      }
+    },
+    restoreFromBackup: async (json: any) => {
+      // Upsert logic. Heavy operation.
+      const {
+        members, memberships, careRecords, reservations, products, managers, categories, notices, contracts, programs,
+        privateNotes, notifications, actionLogs
+      } = json.data;
+
+      // 1. Members
+      if (members?.length) {
+        const { error } = await supabase.from('hannam_members').upsert(transformKeys(members, 'toSnake'), { onConflict: 'id' });
+        if (error) throw new Error('회원 복구 실패: ' + error.message);
+      }
+
+      // 2. Dependencies
+      if (categories?.length) await supabase.from('hannam_categories').upsert(transformKeys(categories, 'toSnake'), { onConflict: 'id' });
+      if (products?.length) await supabase.from('hannam_membership_products').upsert(transformKeys(products, 'toSnake'), { onConflict: 'id' });
+      if (managers?.length) await supabase.from('hannam_managers').upsert(transformKeys(managers, 'toSnake'), { onConflict: 'id' });
+      if (programs?.length) await supabase.from('hannam_programs').upsert(transformKeys(programs, 'toSnake'), { onConflict: 'id' });
+      if (notices?.length) await supabase.from('hannam_notices').upsert(transformKeys(notices, 'toSnake'), { onConflict: 'id' });
+      if (contracts?.length) await supabase.from('hannam_contracts').upsert(transformKeys(contracts, 'toSnake'), { onConflict: 'id' });
+
+      // 3. Core Data
+      if (memberships?.length) await supabase.from('hannam_memberships').upsert(transformKeys(memberships, 'toSnake'), { onConflict: 'id' });
+      if (reservations?.length) await supabase.from('hannam_reservations').upsert(transformKeys(reservations, 'toSnake'), { onConflict: 'id' });
+      if (careRecords?.length) await supabase.from('hannam_care_records').upsert(transformKeys(careRecords, 'toSnake'), { onConflict: 'id' });
+
+      // 4. Auxiliary Data
+      if (privateNotes?.length) await supabase.from('hannam_admin_private_notes').upsert(transformKeys(privateNotes, 'toSnake'), { onConflict: 'id' });
+      if (notifications?.length) await supabase.from('hannam_notifications').upsert(transformKeys(notifications, 'toSnake'), { onConflict: 'id' });
+      if (actionLogs?.length) await supabase.from('hannam_admin_action_logs').upsert(transformKeys(actionLogs, 'toSnake'), { onConflict: 'id' });
+      return { success: true };
+    },
+    processCsvMigration: async (rows: any[]) => {
+      let successCount = 0;
+      let errors: string[] = [];
+
+      // [CSV Structure matches Template]
+      // Name, Phone, Gender, Birth, Email, RegDate, Product, Paid, Used, Balance, MsDate, Memo
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row[0] || !row[1]) continue; // Skip empty rows
+
+        const [name, phone, gender, birth, email, regDate, prodName, paidVal, usedVal, balVal, msRegDate, memo] = row;
+        const paid = Number(paidVal?.replace(/[^0-9]/g, '')) || 0;
+        const used = Number(usedVal?.replace(/[^0-9]/g, '')) || 0;
+        // Balance is calculated, but strictly we trust Paid - Used
+
+        try {
+          // 1. Member (Upsert-ish) using add() which handles checks
+          // Note: add() creates ID from phone. 
+          const cleanPhone = phone.replace(/[^0-9]/g, '');
+          let memberId = cleanPhone;
+
+          // Check existence
+          const { data: existing } = await supabase.from('hannam_members').select('id').eq('id', cleanPhone).maybeSingle();
+          if (!existing) {
+            const newMember = await db.members.add({
+              name, phone: cleanPhone, gender: gender === '남성' ? '남성' : '여성', birthDate: birth || '1900-01-01', email: email || '', adminMemo: memo, createdAt: regDate
+            });
+            memberId = newMember.id;
+          } else {
+            // Update memo if exists?
+            if (memo) await db.members.update(memberId, { adminMemo: memo });
+          }
+
+          // 2. Membership
+          if (prodName) {
+            // Create Membership via TopUp (Simulated) or Direct Insert
+            // Direct Insert is better to set specific used_amount
+            const msId = crypto.randomUUID();
+            const { error: msError } = await supabase.from('hannam_memberships').insert([transformKeys({
+              id: msId,
+              memberId,
+              productId: null, // Unknown product ID, just text
+              productName: prodName,
+              totalAmount: paid,
+              usedAmount: used,
+              remainingAmount: paid - used,
+              status: 'active',
+              expiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(), // Default 1 year
+              createdAt: msRegDate || new Date().toISOString()
+            }, 'toSnake')]);
+
+            if (msError) throw msError;
+
+            // 3. Legacy Care Record (if used > 0)
+            if (used > 0) {
+              await supabase.from('hannam_care_records').insert([transformKeys({
+                id: crypto.randomUUID(),
+                memberId,
+                membershipId: msId,
+                programId: 'MIGRATION_LEGACY', // Placeholder
+                originalPrice: used,
+                discountRate: 0,
+                finalPrice: used,
+                balanceAfter: paid - used,
+                noteSummary: 'Legacy Data Migration',
+                noteDetails: 'Previous system usage history migrated via Bulk Upload.',
+                signatureStatus: 'completed',
+                date: new Date().toISOString().split('T')[0],
+                createdAt: new Date().toISOString()
+              }, 'toSnake')]);
+            }
+          }
+          successCount++;
+        } catch (e: any) {
+          errors.push(`Row ${i + 1} (${name}): ${e.message}`);
+        }
+      }
+      return { successCount, errors };
+    },
+    getSecurityConfig: async () => {
+      // Fetch hidden config from Notices
+      const { data } = await supabase.from('hannam_notices').select('content').eq('id', 'SYSTEM_LOCK_CONFIG').maybeSingle();
+      if (data?.content) {
+        try { return JSON.parse(data.content); } catch (e) { return null; }
+      }
+      return { masterPassword: 'ekftnq0134!', authNumber: 'ekftnq0134!' }; // Default Fallback
+    },
+    updateSecurityConfig: async (masterPassword: string, authNumber: string) => {
+      // Upsert hidden notice
+      const { error } = await supabase.from('hannam_notices').upsert({
+        id: 'SYSTEM_LOCK_CONFIG',
+        title: 'SYSTEM_SECURITY_CONFIG_DO_NOT_DELETE',
+        content: JSON.stringify({ masterPassword, authNumber }),
+        category: 'SYSTEM',
+        is_popup: false,
+        is_alert_on: false,
+        start_date: '2099-01-01',
+        end_date: '2099-12-31',
+        created_at: new Date().toISOString()
+      });
+      if (error) throw error;
+    },
+    // [AlimTalk]
+    getAlimTalkConfig: async () => {
+      const { data } = await supabase.from('hannam_notices').select('content').eq('id', 'ALIMTALK_CONFIG').maybeSingle();
+      if (data?.content) {
+        try { return JSON.parse(data.content); } catch (e) { return null; }
+      }
+      return {
+        isActive: false,
+        sendTime: '15:00',
+        senderPhone: '',
+        reminderTemplateCode: 'TP_REMIND_01',
+        reminderBody: '[웰니스더한남] 예약 알림\n\n#{이름}님, 내일(#{날짜}) #{시간} 예약을 안내드립니다.\n프로그램: #{프로그램}'
+      };
+    },
+    updateAlimTalkConfig: async (config: any) => {
+      const { error } = await supabase.from('hannam_notices').upsert({
+        id: 'ALIMTALK_CONFIG',
+        title: 'ALIMTALK_CONFIG',
+        content: JSON.stringify(config),
+        category: 'SYSTEM',
+        is_popup: false,
+        is_alert_on: false,
+        start_date: '2099-01-01',
+        end_date: '2099-12-31',
+        created_at: new Date().toISOString()
+      });
+      if (error) throw error;
+    },
   },
-  getSecurityConfig: async () => {
-    // Fetch hidden config from Notices
-    const { data } = await supabase.from('hannam_notices').select('content').eq('id', 'SYSTEM_LOCK_CONFIG').maybeSingle();
-    if (data?.content) {
-      try { return JSON.parse(data.content); } catch (e) { return null; }
-    }
-    return { masterPassword: 'ekftnq0134!', authNumber: 'ekftnq0134!' }; // Default Fallback
-  },
-  updateSecurityConfig: async (masterPassword: string, authNumber: string) => {
-    // Upsert hidden notice
-    const { error } = await supabase.from('hannam_notices').upsert({
-      id: 'SYSTEM_LOCK_CONFIG',
-      title: 'SYSTEM_SECURITY_CONFIG_DO_NOT_DELETE',
-      content: JSON.stringify({ masterPassword, authNumber }),
-      category: 'SYSTEM',
-      is_popup: false,
-      is_alert_on: false,
-      start_date: '2099-01-01',
-      end_date: '2099-12-31',
-      created_at: new Date().toISOString()
-    });
-    if (error) throw error;
-  },
-  // [AlimTalk]
-  getAlimTalkConfig: async () => {
-    const { data } = await supabase.from('hannam_notices').select('content').eq('id', 'ALIMTALK_CONFIG').maybeSingle();
-    if (data?.content) {
-      try { return JSON.parse(data.content); } catch (e) { return null; }
-    }
-    return {
-      isActive: false,
-      sendTime: '15:00',
-      senderPhone: '',
-      reminderTemplateCode: 'TP_REMIND_01',
-      reminderBody: '[웰니스더한남] 예약 알림\n\n#{이름}님, 내일(#{날짜}) #{시간} 예약을 안내드립니다.\n프로그램: #{프로그램}'
-    };
-  },
-  updateAlimTalkConfig: async (config: any) => {
-    const { error } = await supabase.from('hannam_notices').upsert({
-      id: 'ALIMTALK_CONFIG',
-      title: 'ALIMTALK_CONFIG',
-      content: JSON.stringify(config),
-      category: 'SYSTEM',
-      is_popup: false,
-      is_alert_on: false,
-      start_date: '2099-01-01',
-      end_date: '2099-12-31',
-      created_at: new Date().toISOString()
-    });
-    if (error) throw error;
-  }
-},
   notices: {
     // [UPDATED] Get Active Notices + Filter by Member's Read Status
     getActiveNotices: async (memberId?: string) => {
       const today = new Date().toISOString().split('T')[0];
 
-const { data: notices, error } = await supabase
-  .from('hannam_notices')
-  .select('*')
-  .lte('start_date', today)
-  .gte('end_date', today)
-  .eq('is_alert_on', true)
-  .order('created_at', { ascending: false });
+      const { data: notices, error } = await supabase
+        .from('hannam_notices')
+        .select('*')
+        .lte('start_date', today)
+        .gte('end_date', today)
+        .eq('is_alert_on', true)
+        .order('created_at', { ascending: false });
 
-if (error) {
-  if (error.code === '42P01') return [];
-  throw error;
-};
-// [FIX] If Admin (UUID), skip member personalization
-if (!memberId || memberId.length > 20) return transformKeys(notices || [], 'toCamel');
+      if (error) {
+        if (error.code === '42P01') return [];
+        throw error;
+      };
 
-const { data: member } = await supabase.from('hannam_members').select('confirmed_notice_ids').eq('id', memberId).single();
-const confirmed = new Set(member?.confirmed_notice_ids || []);
+      // [FIX] If Admin (UUID), skip member personalization
+      if (!memberId || memberId.length > 20) return transformKeys(notices || [], 'toCamel');
 
-return (notices || []).map(n => ({
-  ...transformKeys(n, 'toCamel'),
-  isRead: confirmed.has(n.id)
-}));
+      const { data: member } = await supabase.from('hannam_members').select('confirmed_notice_ids').eq('id', memberId).single();
+      const confirmed = new Set(member?.confirmed_notice_ids || []);
+
+      return (notices || []).map(n => ({
+        ...transformKeys(n, 'toCamel'),
+        isRead: confirmed.has(n.id)
+      }));
     },
 
-getAll: async () => {
-  const { data, error } = await supabase
-    .from('hannam_notices')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return transformKeys(data, 'toCamel');
-},
+    getAll: async () => {
+      const { data, error } = await supabase.from('hannam_notices').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return transformKeys(data, 'toCamel');
+    },
 
-  getById: async (id: string) => {
-    const { data, error } = await supabase.from('hannam_notices').select('*').eq('id', id).single();
-    if (error) return null;
-    return transformKeys(data, 'toCamel') as Notice;
-  },
+    getById: async (id: string) => {
+      const { data, error } = await supabase.from('hannam_notices').select('*').eq('id', id).single();
+      if (error) return null;
+      return transformKeys(data, 'toCamel') as Notice;
+    },
 
     add: async (notice: Partial<Notice>) => {
-      const { data, error } = await supabase
-        .from('hannam_notices')
-        .insert([transformKeys(notice, 'toSnake')])
-        .select();
+      const { data, error } = await supabase.from('hannam_notices').insert([transformKeys(notice, 'toSnake')]).select();
       if (error) throw error;
       return transformKeys(data?.[0], 'toCamel') as Notice;
     },
 
-      delete: async (id: string) => {
-        const { error } = await supabase.from('hannam_notices').delete().eq('id', id);
-        if (error) throw error;
-      },
+    delete: async (id: string) => {
+      const { error } = await supabase.from('hannam_notices').delete().eq('id', id);
+      if (error) throw error;
+    },
 
-        markAsRead: async (memberId: string, noticeId: string) => {
-          const { data: member } = await supabase.from('hannam_members').select('confirmed_notice_ids').eq('id', memberId).single();
-          const current = member?.confirmed_notice_ids || [];
-
-          if (current.includes(noticeId)) return;
-
-          const updated = [...current, noticeId];
-          const { error } = await supabase
-            .from('hannam_members')
-            .update({ confirmed_notice_ids: updated })
-            .eq('id', memberId);
-
-          if (error) throw error;
-        },
-
-          upsert: async (careRecordId: string, content: string) => {
-            // [FIX] Redirect to 'hannam_care_records.note_details' (Unified Secret Note)
-            // Append-Only Logic is handled by the caller (PrivateNoteEditor.tsx), which passes full 'finalContent'
-            const { data, error } = await supabase
-              .from('hannam_care_records')
-              .update({
-                note_details: content,
-                // note_updated_at: new Date().toISOString() // Optional column if exists
-              })
-              .eq('id', careRecordId)
-              .select()
-              .single();
-
-            if (error) throw error;
-
-            // Return compatible shape for AdminPrivateNote
-            return {
-              id: data.id,
-              careRecordId: data.id,
-              content: data.note_details,
-              updatedAt: data.created_at // or updated_at if available
-            } as unknown as AdminPrivateNote;
-          },
-            getByCareRecordId: async (careRecordId: string) => {
-              // [FIX] Read from 'hannam_care_records.note_details'
-              const { data, error } = await supabase
-                .from('hannam_care_records')
-                .select('id, note_details, created_at')
-                .eq('id', careRecordId)
-                .single();
-
-              if (error) {
-                console.warn('AdminNote Fetch Error (Note might be empty):', error);
-                return null;
-              }
-
-              return {
-                id: data.id,
-                careRecordId: data.id,
-                content: data.note_details,
-                updatedAt: data.created_at
-              } as unknown as AdminPrivateNote;
-            }
+    markAsRead: async (memberId: string, noticeId: string) => {
+      const { data: member } = await supabase.from('hannam_members').select('confirmed_notice_ids').eq('id', memberId).single();
+      const current = member?.confirmed_notice_ids || [];
+      if (current.includes(noticeId)) return;
+      const updated = [...current, noticeId];
+      const { error } = await supabase.from('hannam_members').update({ confirmed_notice_ids: updated }).eq('id', memberId);
+      if (error) throw error;
+    }
   },
-notifications: {
-  getByMemberId: async (memberId: string) => {
-    const { data } = await supabase.from('hannam_notifications')
-      .select('*')
-      .eq('member_id', memberId)
-      .order('created_at', { ascending: false });
-    return transformKeys(data || [], 'toCamel') as Notification[];
-  },
+  notifications: {
+    getByMemberId: async (memberId: string) => {
+      const { data } = await supabase.from('hannam_notifications')
+        .select('*')
+        .eq('member_id', memberId)
+        .order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as Notification[];
+    },
     getAll: async (memberId?: string) => {
       if (!memberId) return [];
       const { data, error } = await supabase.from('hannam_notifications')
@@ -1431,120 +1376,120 @@ notifications: {
       }
       return transformKeys(data || [], 'toCamel') as Notification[];
     },
-      getAllAdmin: async () => {
-        // [ADMIN] Fetch ALL notifications for History Tab (Limit 100)
-        const { data } = await supabase.from('hannam_notifications')
-          .select(`*, member:hannam_members(name, phone)`)
-          .order('created_at', { ascending: false })
-          .limit(100);
-        return transformKeys(data || [], 'toCamel') as Notification[];
-      },
-        add: async (noti: Partial<Notification>) => {
-          // [CRITICAL] Write to hannam_notifications table
-          console.log('[DB] Adding Notification:', noti);
+    getAllAdmin: async () => {
+      // [ADMIN] Fetch ALL notifications for History Tab (Limit 100)
+      const { data } = await supabase.from('hannam_notifications')
+        .select(`*, member:hannam_members(name, phone)`)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      return transformKeys(data || [], 'toCamel') as Notification[];
+    },
+    add: async (noti: Partial<Notification>) => {
+      // [CRITICAL] Write to hannam_notifications table
+      console.log('[DB] Adding Notification:', noti);
 
-          const { data, error } = await supabase.from('hannam_notifications').insert([transformKeys({
-            memberId: noti.memberId,
-            title: noti.title,
-            content: noti.content,
-            isRead: false,
-            type: noti.type || 'INFO',
-            link: noti.link || '',
-            createdAt: new Date().toISOString()
-          }, 'toSnake')]).select();
+      const { data, error } = await supabase.from('hannam_notifications').insert([transformKeys({
+        memberId: noti.memberId,
+        title: noti.title,
+        content: noti.content,
+        isRead: false,
+        type: noti.type || 'INFO',
+        link: noti.link || '',
+        createdAt: new Date().toISOString()
+      }, 'toSnake')]).select();
 
-          if (error) {
-            console.error('[DB] Notification Write Failed:', error);
-            throw error;
-          }
-          return transformKeys(data?.[0], 'toCamel') as Notification;
-        },
-          delete: async (id: string) => {
-            const { error } = await supabase.from('hannam_notifications').delete().eq('id', id);
-            if (error) throw error;
-          },
-            markAsRead: async (id: string) => {
-              await supabase.from('hannam_notifications').update({ is_read: true }).eq('id', id);
-            },
-              getBadgeCount: async (memberId: string) => {
-                if (memberId && memberId.length > 20) return { total: 0, personal: 0, notice: 0 };
-                try {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  let query = supabase.from('hannam_notifications').select('*', { count: 'exact', head: true }).eq('is_read', false);
-                  if (memberId) query = query.eq('member_id', memberId);
-                  else if (user) query = query.eq('user_id', user.id);
-                  else return { total: 0, personal: 0, notice: 0 };
+      if (error) {
+        console.error('[DB] Notification Write Failed:', error);
+        throw error;
+      }
+      return transformKeys(data?.[0], 'toCamel') as Notification;
+    },
+    delete: async (id: string) => {
+      const { error } = await supabase.from('hannam_notifications').delete().eq('id', id);
+      if (error) throw error;
+    },
+    markAsRead: async (id: string) => {
+      await supabase.from('hannam_notifications').update({ is_read: true }).eq('id', id);
+    },
+    getBadgeCount: async (memberId: string) => {
+      if (memberId && memberId.length > 20) return { total: 0, personal: 0, notice: 0 };
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        let query = supabase.from('hannam_notifications').select('*', { count: 'exact', head: true }).eq('is_read', false);
+        if (memberId) query = query.eq('member_id', memberId);
+        else if (user) query = query.eq('user_id', user.id);
+        else return { total: 0, personal: 0, notice: 0 };
 
-                  const { count: pCount } = await query;
-                  const personalCount = pCount || 0;
+        const { count: pCount } = await query;
+        const personalCount = pCount || 0;
 
-                  const today = new Date().toISOString().split('T')[0];
-                  const { count: totalNotices } = await supabase.from('hannam_notices')
-                    .select('*', { count: 'exact', head: true })
-                    .lte('start_date', today)
-                    .gte('end_date', today);
+        const today = new Date().toISOString().split('T')[0];
+        const { count: totalNotices } = await supabase.from('hannam_notices')
+          .select('*', { count: 'exact', head: true })
+          .lte('start_date', today)
+          .gte('end_date', today);
 
-                  const { data: memberData } = await supabase.from('hannam_members').select('confirmed_notice_ids').eq('id', memberId).single();
-                  const confirmedCount = memberData?.confirmed_notice_ids ? memberData.confirmed_notice_ids.length : 0;
-                  let noticeCount = (totalNotices || 0) - confirmedCount;
-                  if (noticeCount < 0) noticeCount = 0;
+        const { data: memberData } = await supabase.from('hannam_members').select('confirmed_notice_ids').eq('id', memberId).single();
+        const confirmedCount = memberData?.confirmed_notice_ids ? memberData.confirmed_notice_ids.length : 0;
+        let noticeCount = (totalNotices || 0) - confirmedCount;
+        if (noticeCount < 0) noticeCount = 0;
 
-                  const totalBadge = personalCount;
-                  if ('setAppBadge' in navigator) navigator.setAppBadge(totalBadge).catch(() => { });
+        const totalBadge = personalCount;
+        if ('setAppBadge' in navigator) navigator.setAppBadge(totalBadge).catch(() => { });
 
-                  return { total: totalBadge, personal: personalCount, notice: noticeCount };
-                } catch (e) {
-                  return { total: 0, personal: 0, notice: 0 };
-                }
-              }
-},
-fcmTokens: {
-  add: async (memberId: string, token: string) => {
-    // [FIX] Admin (UUID) should not register tokens in Member Table
-    if (memberId.length > 20) return;
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // 1. [Multi-Device Support] DO NOT delete existing tokens.
-    // We want to keep tokens for all devices (PC, Mobile, Tablet) so all receive notifications.
-    // const deleteQuery = supabase.from('hannam_fcm_tokens').delete();
-    // ... deletion logic removed ...
-
-    // 2. Upsert NEW Token
-    const payload: any = {
-      member_id: memberId, // Phone ID
-      token: token,
-      device_type: 'web',
-      updated_at: new Date().toISOString()
-    };
-
-    // Only add user_id if authenticated via Supabase
-    if (user) payload.user_id = user.id;
-
-    const { error } = await supabase.from('hannam_fcm_tokens').upsert(payload, { onConflict: 'member_id,token' });
-
-    if (error) console.error("Failed to save FCM token:", error);
-    else console.log(`[FCM] Token saved for ${memberId}.`);
+        return { total: totalBadge, personal: personalCount, notice: noticeCount };
+      } catch (e) {
+        return { total: 0, personal: 0, notice: 0 };
+      }
+    }
   },
+  fcmTokens: {
+    add: async (memberId: string, token: string) => {
+      // [FIX] Admin (UUID) should not register tokens in Member Table
+      if (memberId.length > 20) return;
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // 1. [Multi-Device Support] DO NOT delete existing tokens.
+      // We want to keep tokens for all devices (PC, Mobile, Tablet) so all receive notifications.
+      // const deleteQuery = supabase.from('hannam_fcm_tokens').delete();
+      // ... deletion logic removed ...
+
+      // 2. Upsert NEW Token
+      const payload: any = {
+        member_id: memberId, // Phone ID
+        token: token,
+        device_type: 'web',
+        updated_at: new Date().toISOString()
+      };
+
+      // Only add user_id if authenticated via Supabase
+      if (user) payload.user_id = user.id;
+
+      const { error } = await supabase.from('hannam_fcm_tokens').upsert(payload, { onConflict: 'member_id,token' });
+
+      if (error) console.error("Failed to save FCM token:", error);
+      else console.log(`[FCM] Token saved for ${memberId}.`);
+    },
     getByMemberId: async (memberId: string) => {
       // Admin usage: Read by Phone ID
       const { data } = await supabase.from('hannam_fcm_tokens').select('token').eq('member_id', memberId);
       return data?.map(r => r.token) || [];
     },
-      getAllAdmin: async () => {
-        // Returns Member IDs (Phone Numbers) that have tokens
-        const { data } = await supabase.from('hannam_fcm_tokens').select('member_id');
-        const uniqueIds = new Set(data?.map(r => r.member_id) || []);
-        return Array.from(uniqueIds);
-      }
-},
-adminNotes: {
-  getAll: async () => {
-    const { data } = await supabase.from('hannam_admin_private_notes')
-      .select('*')
-      .order('created_at', { ascending: false });
-    return transformKeys(data || [], 'toCamel') as AdminPrivateNote[];
+    getAllAdmin: async () => {
+      // Returns Member IDs (Phone Numbers) that have tokens
+      const { data } = await supabase.from('hannam_fcm_tokens').select('member_id');
+      const uniqueIds = new Set(data?.map(r => r.member_id) || []);
+      return Array.from(uniqueIds);
+    }
   },
+  adminNotes: {
+    getAll: async () => {
+      const { data } = await supabase.from('hannam_admin_private_notes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      return transformKeys(data || [], 'toCamel') as AdminPrivateNote[];
+    },
     getByCareRecordId: async (careRecordId: string) => {
       // [FIX] Read from 'hannam_care_records.note_details' (Unified Secret Note)
       const { data, error } = await supabase
@@ -1566,28 +1511,28 @@ adminNotes: {
         updatedAt: data.created_at
       } as unknown as AdminPrivateNote;
     },
-      upsert: async (careRecordId: string, content: string) => {
-        // [FIX] Redirect to 'hannam_care_records.note_details' (Unified Secret Note)
-        const { data, error } = await supabase
-          .from('hannam_care_records')
-          .update({
-            note_details: content
-          })
-          .eq('id', careRecordId)
-          .select('id, note_details, created_at')
-          .single();
+    upsert: async (careRecordId: string, content: string) => {
+      // [FIX] Redirect to 'hannam_care_records.note_details' (Unified Secret Note)
+      const { data, error } = await supabase
+        .from('hannam_care_records')
+        .update({
+          note_details: content
+        })
+        .eq('id', careRecordId)
+        .select('id, note_details, created_at')
+        .single();
 
-        if (error) throw error;
+      if (error) throw error;
 
-        // Return compatible shape for AdminPrivateNote
-        return {
-          id: data.id,
-          careRecordId: data.id,
-          content: data.note_details,
-          updatedAt: data.created_at
-        } as unknown as AdminPrivateNote;
-      }
-},
-supabase,
+      // Return compatible shape for AdminPrivateNote
+      return {
+        id: data.id,
+        careRecordId: data.id,
+        content: data.note_details,
+        updatedAt: data.created_at
+      } as unknown as AdminPrivateNote;
+    }
+  },
+  supabase,
   hashPassword
 };
