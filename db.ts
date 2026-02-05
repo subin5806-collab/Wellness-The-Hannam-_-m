@@ -286,14 +286,26 @@ export const db = {
     },
     delete: async (id: string) => {
       // [HARD DELETE] Atomic Deletion via Database Function (RPC)
-      console.log(`[Hard Delete] Invoking RPC hard_delete_member for ${id}...`);
+      // [FIX] Use Server-Side API instead of RPC to avoid SQL Version Mismatch
+      console.log(`[Hard Delete] Invoking API hard-delete for ${id}...`);
 
-      const { error } = await supabase.rpc('hard_delete_member', { p_member_id: id });
+      const res = await fetch('/api/member/hard-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: id })
+      });
 
-      if (error) {
-        console.error('[Hard Delete] RPC Failed:', error);
-        // Fallback or detailed error message
-        throw new Error(`영구 삭제 실패 (DB Error): ${error.message}`);
+      const result = await res.json();
+
+      if (!res.ok) {
+        // Map API error to Supabase-like error object
+        const error = { message: result.error || 'Server Side Deletion Failed' };
+
+        if (error) {
+          console.error('[Hard Delete] RPC Failed:', error);
+          // Fallback or detailed error message
+          throw new Error(`영구 삭제 실패 (DB Error): ${error.message}`);
+        }
       }
 
       // [VERIFICATION] Double Check
