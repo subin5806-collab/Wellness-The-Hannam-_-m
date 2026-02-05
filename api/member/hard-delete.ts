@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { Buffer } from 'node:buffer';
 
-// [DEPLOYMENT TRIGGER] JWT Diagnostics Added (2026-02-05 21:22)
+// [DEPLOYMENT TRIGGER] UUID Logic Fix (2026-02-05 21:52)
 console.log('[System] Hard Delete Service initialized. Waiting for requests...');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -40,6 +40,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         supabaseServiceKey = supabaseServiceKey.trim();
 
+        // [DEBUG] Capture Metadata for Diagnostics
+        const debugInfo = {
+            keySource,
+            keyLength: supabaseServiceKey.length,
+            keyRole: 'UNKNOWN'
+        };
+
         // [CRITICAL LOGGING]
         console.log(`[HardDelete] Key Source: ${keySource}`);
         console.log(`[HardDelete] Key Length: ${supabaseServiceKey.length}`);
@@ -47,10 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // [JWT DIAGNOSTICS] Decode "role" claim
         try {
             if (supabaseServiceKey.includes('.')) {
-                // Typical JWT format: header.payload.signature
                 const payloadPart = supabaseServiceKey.split('.')[1];
-                // Base64 Decode
                 const decodedPayload = JSON.parse(Buffer.from(payloadPart, 'base64').toString('utf-8'));
+
+                debugInfo.keyRole = decodedPayload.role; // Capture Role
                 console.log(`[HardDelete] Key Role (Decoded): ${decodedPayload.role}`);
 
                 if (decodedPayload.role !== 'service_role') {
@@ -61,6 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
         } catch (e) {
             console.error('[HardDelete] Failed to decode JWT:', e);
+            debugInfo.keyRole = 'ERROR_DECODING';
         }
 
         if (supabaseServiceKey.length > 0 && supabaseServiceKey.length < 250) {
@@ -97,7 +105,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const { memberId } = req.body || req.query;
 
         if (!memberId) {
-            return res.status(400).json({ error: 'Missing memberId' });
+            return res.status(400).json({
+                error: 'Missing memberId',
+                debug_diagnostics: debugInfo // [PROBE] Return diagnostics to confirm environment
+            });
         }
 
         console.log(`[HardDelete] Starting digital incineration for member: ${memberId}`);
@@ -110,15 +121,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         // 0. Delete Auth User (First, to prevent login)
-        const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(memberId);
-        if (deleteAuthError) {
-            console.error('[HardDelete] Auth Deletion Failed:', deleteAuthError);
-            // Return 500 but include metadata to prove we tried with the long key
-            return res.status(500).json({
-                error: 'Auth User Deletion Failed',
-                details: deleteAuthError.message,
-                debug_metadata: keyMetadata
-            });
+        // [FIX] 'memberId' is now PHONE NUMBER, but deleteUser() needs UUID.
+        // We must find the UUID first using the phone number.
+        console.log(`[HardDelete] Searching for Auth User UUID for phone: ${memberId}`);
+
+        const { data: userList, error: listError } = await supabase.auth.admin.listUsers();
+
+        if (listError) {
+            console.error('[HardDelete] Failed to list users for UUID lookup:', listError);
+            // Proceed to DB delete even if auth lookup fails? No, better report.
+            throw new Error(`Auth User Lookup Failed: ${listError.message}`);
+        }
+
+        // Find user by Phone Metadata or Phone field (Supabase stores normalized phone)
+        // Our phone format: 01012345678. Supabase might hold +821012345678 or similar.
+        // Or if we used email: 01012345678@...
+        const targetUser = userList.users.find(u => {
+            const phoneMatch = u.phone === memberId || u.user_metadata?.phone === memberId || u.user_metadata?.full_phone === memberId;
+            const emailMatch = u.email?.startsWith(memberId); // e.g. 01012345678@instructor...
+            return phoneMatch || emailMatch;
+        });
+
+        if (targetUser) {
+            console.log(`[HardDelete] Found UUID: ${targetUser.id} for member ${memberId}`);
+
+            const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(targetUser.id);
+
+            if (deleteAuthError) {
+                console.error('[HardDelete] Auth Deletion Failed:', deleteAuthError);
+                return res.status(500).json({
+                    error: 'Auth User Deletion Failed',
+                    details: deleteAuthError.message,
+                    debug_metadata: keyMetadata
+                });
+            }
+            console.log(`[HardDelete] Auth User ${targetUser.id} deleted.`);
+        } else {
+            console.warn(`[HardDelete] No Auth User found for ${memberId}. Skipping Auth Deletion.`);
         }
 
         // Helper to safely delete and report error
