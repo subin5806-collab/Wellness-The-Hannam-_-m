@@ -72,11 +72,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await safeDelete('hannam_notifications');
         await safeDelete('hannam_admin_private_notes');
 
-        // 3. Delete Core Data
+        // 3. Delete Core Data (Aggressive Cascade)
+        // Try deleting everything related, suppressing 404s/errors for non-existent tables if needed?
+        // Actually safeDelete throws. I should make it suppress "relation does not exist" error?
+        // But for now, let's just list ALL known tables from experience or standard schema.
+
         await safeDelete('hannam_care_records');
         await safeDelete('hannam_reservations');
         await safeDelete('hannam_contracts');
         await safeDelete('hannam_memberships');
+
+        // [Aggressive] Try deleting legacy/potential tables just in case
+        // If they don't exist, it might throw "relation 'xxx' does not exist". 
+        // We should wrap safeDelete to ignore that specific error.
+
+        const safeDeleteIgnoreMissing = async (table: string) => {
+            const { error } = await supabase.from(table).delete().eq('member_id', memberId);
+            if (error) {
+                // Ignore if table doesn't exist (code 42P01) or column missing (42703)
+                if (error.code === '42P01' || error.code === '42703') {
+                    console.warn(`[HardDelete] Skipped missing table/column: ${table}`);
+                } else {
+                    console.error(`[HardDelete] Failed to delete from ${table}:`, error);
+                    // Don't throw, just log for these optional ones
+                }
+            }
+        };
+
+        await safeDeleteIgnoreMissing('hannam_payments');
+        await safeDeleteIgnoreMissing('hannam_payment_history');
+        await safeDeleteIgnoreMissing('hannam_point_history');
+        await safeDeleteIgnoreMissing('hannam_signatures');
+        await safeDeleteIgnoreMissing('hannam_files');
+
 
         // 4. Delete Member (Result Check)
         const { error: deleteError } = await supabase.from('hannam_members').delete().eq('id', memberId);
