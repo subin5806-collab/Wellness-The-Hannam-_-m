@@ -3,9 +3,17 @@ import admin from 'firebase-admin';
 import { createClient } from '@supabase/supabase-js';
 
 // [INIT] Supabase Admin Client for Logging & Badge Count
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://ghhknsewwevbgojozdzc.supabase.co';
+const supabaseUrl = process.env.VITE_SUPABASE_URL
+    || process.env.SUPABASE_URL
+    || process.env.NEXT_PUBLIC_SUPABASE_URL
+    || '';
+
 // [SECURITY] Use Service Role Key for Admin Privileges (Log Writes)
-const supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+    || process.env.SUPABASE_SERVICE_ROLE_KEY
+    || process.env.SERVICE_ROLE_KEY
+    || process.env.VITE_SUPABASE_ANON_KEY
+    || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

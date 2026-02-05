@@ -13,12 +13,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         // [INIT] Lazy Load Credentials to catch missing env vars gracefully
-        const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+        // Support all common naming conventions (Vite, Next.js, Standard)
+        const supabaseUrl = process.env.VITE_SUPABASE_URL
+            || process.env.SUPABASE_URL
+            || process.env.NEXT_PUBLIC_SUPABASE_URL
+            || '';
+
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+            || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+            || process.env.SERVICE_ROLE_KEY
+            || '';
 
         if (!supabaseUrl || !supabaseServiceKey) {
             console.error('[HardDelete] Missing Server Credentials');
-            return res.status(500).json({ error: 'Server Configuration Error: Missing Supabase Credentials' });
+            console.error('Checked URLs: VITE_SUPABASE_URL, SUPABASE_URL, NEXT_PUBLIC_SUPABASE_URL');
+            console.error('Checked Keys: SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_SERVICE_ROLE_KEY, SERVICE_ROLE_KEY');
+
+            return res.status(500).json({
+                error: 'Missing Supabase Credentials',
+                details: 'Please define SUPABASE_SERVICE_ROLE_KEY in Vercel Project Settings.'
+            });
         }
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
