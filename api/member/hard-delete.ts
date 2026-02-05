@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { Buffer } from 'node:buffer';
 
-// [DEPLOYMENT TRIGGER] UUID Logic Fix (2026-02-05 21:52)
+// [DEPLOYMENT TRIGGER] Column Name Fix (2026-02-05 22:00)
 console.log('[System] Hard Delete Service initialized. Waiting for requests...');
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -178,7 +178,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 2. Delete Personal Data
         await safeDelete('hannam_fcm_tokens');
         await safeDelete('hannam_notifications');
-        await safeDelete('hannam_admin_private_notes');
+        // [FIX] 'hannam_admin_private_notes' uses 'target_member_id', not 'member_id'
+        await safeDelete('hannam_admin_private_notes', 'target_member_id');
 
         // 3. Delete Core Data (Aggressive Cascade)
         // Try deleting everything related, suppressing 404s/errors for non-existent tables if needed?
