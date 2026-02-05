@@ -205,15 +205,15 @@ export default function NotificationCenter() {
                 noticeId = newNotice?.id;
             }
 
-            // 6. Send App Push (API Dispatch) - Only if targets exist
+            // 6. Send App Push (API Dispatch) & Persist History
             let apiResult = { success: 0, failure: 0 };
 
-            if (channels.push && validTargets.length > 0) {
-                // [PERSISTENCE] Save to 'hannam_notifications' for Personal Alarm List (Client Side)
-                // Use valid targets only
-                const notiRows = validTargets.map(({ memberId }) => ({
-                    id: `NOTI-${Date.now()}-${memberId.slice(-4)}`,
-                    member_id: memberId,
+            if (channels.push) {
+                // [FIX] Persist to 'hannam_notifications' for ALL selected members, regardless of token availability.
+                // This ensures "History" tab shows the log, and users see it in "Alarm Center" even if they didn't get the push.
+                const notiRows = allTargetIds.map((mid) => ({
+                    id: `NOTI-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`, // Use random suffix to prevent collision in batch
+                    member_id: mid,
                     type: 'PUSH',
                     title,
                     content: body,
@@ -221,31 +221,31 @@ export default function NotificationCenter() {
                     created_at: new Date().toISOString()
                 }));
 
-                // Batch insert notifications
-                // Supabase insert has limits, but validTargets unlikely to exceed limit in one go here (or handle chunks if needed)
-                // For safety, let's splice if massive, but usually 1000 is fine.
+                // Batch insert notifications (Process in chunks if needed, but 100 is safe)
                 const { error: notiError } = await supabase.from('hannam_notifications').insert(notiRows);
                 if (notiError) console.warn('Failed to save in-app notification history', notiError);
 
-                // [API CALL]
-                const res = await fetch('/api/push/send', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title,
-                        body,
-                        targets: validTargets, // Send only filtered valid targets
-                        data: {
-                            url: linkUrl,
-                            image: imageUrl,
-                            noticeId: noticeId
-                        }
-                    })
-                });
+                // [API CALL] Only for users with Valid Tokens
+                if (validTargets.length > 0) {
+                    const res = await fetch('/api/push/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title,
+                            body,
+                            targets: validTargets, // Send only filtered valid targets
+                            data: {
+                                url: linkUrl,
+                                image: imageUrl,
+                                noticeId: noticeId
+                            }
+                        })
+                    });
 
-                const resJson = await res.json();
-                if (resJson.success) {
-                    apiResult = { success: resJson.successCount, failure: resJson.failureCount };
+                    const resJson = await res.json();
+                    if (resJson.success) {
+                        apiResult = { success: resJson.successCount, failure: resJson.failureCount };
+                    }
                 }
             }
 
