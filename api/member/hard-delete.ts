@@ -64,6 +64,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         console.log(`[HardDelete] Starting digital incineration for member: ${memberId}`);
 
+        // [DEBUG] Prepare Metadata for verification (User Request: "Check length")
+        const keyMetadata = {
+            key: 'SUPABASE_SERVICE_ROLE_KEY',
+            length: supabaseServiceKey?.length || 0,
+            preview: supabaseServiceKey ? `${supabaseServiceKey.substring(0, 5)}...` : 'EMPTY'
+        };
+
+        // 0. Delete Auth User (First, to prevent login)
+        const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(memberId);
+        if (deleteAuthError) {
+            console.error('[HardDelete] Auth Deletion Failed:', deleteAuthError);
+            // Return 500 but include metadata to prove we tried with the long key
+            return res.status(500).json({
+                error: 'Auth User Deletion Failed',
+                details: deleteAuthError.message,
+                debug_metadata: keyMetadata
+            });
+        }
+
         // Helper to safely delete and report error
         const safeDelete = async (table: string, column: string = 'member_id') => {
             const { error } = await supabase.from(table).delete().eq(column, memberId);
