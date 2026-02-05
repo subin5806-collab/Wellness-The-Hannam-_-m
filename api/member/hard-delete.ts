@@ -26,12 +26,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!supabaseUrl || !supabaseServiceKey) {
             console.error('[HardDelete] Missing Server Credentials');
-            console.error('Checked URLs: VITE_SUPABASE_URL, SUPABASE_URL, NEXT_PUBLIC_SUPABASE_URL');
-            console.error('Checked Keys: SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_SERVICE_ROLE_KEY, SERVICE_ROLE_KEY');
+
+            // [DEBUG] List available keys (security safe)
+            const availableEnvKeys = Object.keys(process.env).filter(k => k.includes('SUPABASE') || k.includes('VITE'));
+            console.error('Available Environment Keys:', availableEnvKeys);
 
             return res.status(500).json({
                 error: 'Missing Supabase Credentials',
-                details: 'Please define SUPABASE_SERVICE_ROLE_KEY in Vercel Project Settings.'
+                details: 'Please define SUPABASE_SERVICE_ROLE_KEY in Vercel.',
+                debug_available_keys: availableEnvKeys
             });
         }
 
