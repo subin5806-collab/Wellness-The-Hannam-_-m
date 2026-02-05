@@ -310,8 +310,8 @@ export const db = {
       }
 
       if (!res.ok) {
-        // [DEBUG] Log full server response to reveal debug_available_keys
-        console.error('[Hard Delete] Server Full Response:', result);
+        // [DEBUG] Log full server response as STRING to avoid browser collapsing
+        console.error('[Hard Delete] Server Full Response:\n', JSON.stringify(result, null, 2));
 
         // Map API error to Supabase-like error object
         const error = { message: result.error || 'Server Side Deletion Failed' };

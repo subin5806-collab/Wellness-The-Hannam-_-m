@@ -103,6 +103,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await safeDeleteIgnoreMissing('hannam_payment_history');
         await safeDeleteIgnoreMissing('hannam_point_history');
         await safeDeleteIgnoreMissing('hannam_signatures');
+        await safeDeleteIgnoreMissing('hannam_transactions');
+        await safeDeleteIgnoreMissing('hannam_sales');
         await safeDeleteIgnoreMissing('hannam_files');
 
 
