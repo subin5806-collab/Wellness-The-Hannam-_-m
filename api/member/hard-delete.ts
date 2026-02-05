@@ -1,6 +1,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { Buffer } from 'node:buffer';
 
 // [DEPLOYMENT TRIGGER] JWT Diagnostics Added (2026-02-05 21:22)
 console.log('[System] Hard Delete Service initialized. Waiting for requests...');
