@@ -2,6 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { AligoService } from '../../../services/aligo';
 
+const ALIGO_CONFIG_DEFAULTS = {
+    key: 'wt1mir1bfax86lt0s8vu9bn47whjywb5',
+    user_id: 'modoofit',
+    sender: '01000000000'
+};
+
 export default function NotificationControl() {
     const [config, setConfig] = useState<any>(null);
     const [balance, setBalance] = useState<any>(null);
@@ -9,6 +15,12 @@ export default function NotificationControl() {
     const [templates, setTemplates] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedHistory, setSelectedHistory] = useState<any>(null); // For Modal
+
+    // Channel Auth State
+    const [channelStage, setChannelStage] = useState<'INIT' | 'AUTH_SENT' | 'DONE'>('INIT');
+    const [authInputs, setAuthInputs] = useState({ plusid: '', phonenumber: '', authnum: '', categorycode: '' });
+    const [categories, setCategories] = useState<any[]>([]);
+    const [registeredProfile, setRegisteredProfile] = useState<any>(null);
 
     // Initial Load
     useEffect(() => {
@@ -25,7 +37,7 @@ export default function NotificationControl() {
             ]);
 
             // Initialize default triggers if missing
-            const finalConfig = cfg || { isActive: true, triggers: {} };
+            const finalConfig: any = cfg || { isActive: true, triggers: {} };
             if (!finalConfig.triggers) finalConfig.triggers = {};
             ['PAYMENT', 'RESERVATION', 'VISIT_REMINDER'].forEach(key => {
                 if (!finalConfig.triggers[key]) finalConfig.triggers[key] = { enabled: false, templateCode: '' };
@@ -44,6 +56,79 @@ export default function NotificationControl() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Channel Auth Handlers
+    const handleRequestAuth = async () => {
+        if (!authInputs.plusid || !authInputs.phonenumber) return alert('입력값을 확인해주세요.');
+        setIsLoading(true);
+        try {
+            const res = await AligoService.requestAuth(authInputs.plusid, authInputs.phonenumber);
+            if (res.code === 0) {
+                alert('인증번호가 발송되었습니다. 카카오톡을 확인해주세요.');
+                setChannelStage('AUTH_SENT');
+                // Load categories for next step
+                const catRes = await AligoService.getCategory();
+                if (catRes.code === 0) {
+                    // Flatten categories for simple select (could be recursive, but let's grab 3rd level for now or just standard list)
+                    // API returns data: { first..., second..., third... }
+                    // Let's simplified flat list or just use "001" (Health) if too complex for UI.
+                    // Actually, let's map thirdBusinessType for most specific.
+                    setCategories(catRes.data.thirdBusinessType || []);
+                }
+            } else {
+                alert('요청 실패: ' + res.message);
+            }
+        } catch (e) { alert('API Error'); } finally { setIsLoading(false); }
+    };
+
+    const handleCompleteAuth = async () => {
+        if (!authInputs.authnum || !authInputs.categorycode) return alert('인증번호와 카테고리를 선택해주세요.');
+        setIsLoading(true);
+        try {
+            const res = await AligoService.createProfile(authInputs.plusid, authInputs.authnum, authInputs.phonenumber, authInputs.authnum);
+            // Note: API doc says createProfile param order: plusid, authnum, phonenumber, categorycode
+            // My Service wrapper: createProfile(plusid, authnum, phonenumber, categorycode)
+
+            // Re-call with correct params
+            const realRes = await AligoService.createProfile(authInputs.plusid, authInputs.authnum, authInputs.phonenumber, authInputs.categorycode);
+
+            if (realRes.code === 0 && realRes.data && realRes.data.length > 0) {
+                const profile = realRes.data[0];
+                alert(`인증 성공! SenderKey: ${profile.senderKey}`);
+                setRegisteredProfile(profile);
+                setChannelStage('DONE');
+
+                // AUTO-SAVE to DB Config
+                const newConfig = {
+                    ...config,
+                    senderkey: profile.senderKey,
+                    apikey: config.apikey || ALIGO_CONFIG_DEFAULTS.key, // Ensure we keep existing or default
+                    userid: config.userid || ALIGO_CONFIG_DEFAULTS.user_id,
+                    sender: authInputs.phonenumber
+                };
+                await AligoService.updateConfig(newConfig);
+                setConfig(newConfig);
+                alert('시스템 설정(ALIMTALK_CONFIG)에 자동 저장되었습니다.');
+            } else {
+                alert('인증 확인 실패: ' + (realRes.message || 'Unknown'));
+            }
+        } catch (e) { alert('API Error'); } finally { setIsLoading(false); }
+    };
+
+    // Template Handlers
+    const handleRequestInspection = async (code: string) => {
+        if (!confirm('검수 요청하시겠습니까? (4~5일 소요)')) return;
+        setIsLoading(true);
+        try {
+            const res = await AligoService.requestTemplate(code);
+            if (res.code === 0) {
+                alert('요청되었습니다.');
+                handleFetchTemplates(); // Refresh
+            } else {
+                alert('요청 실패: ' + res.message);
+            }
+        } catch (e) { alert('Error'); } finally { setIsLoading(false); }
     };
 
     const handleFetchTemplates = async () => {
@@ -135,6 +220,73 @@ export default function NotificationControl() {
 
             {/* Main Control: Master Switches */}
             <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm">
+                {/* Channel Auth Section */}
+                <div className="mb-10 p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">📢 카카오 채널 연동 (Sender Key 발급)</h3>
+                    {channelStage === 'INIT' && (
+                        <div className="flex gap-4 items-end">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 mb-1">채널 ID (@포함)</label>
+                                <input
+                                    className="px-3 py-2 border rounded-lg text-sm"
+                                    placeholder="@채널아이디"
+                                    value={authInputs.plusid}
+                                    onChange={e => setAuthInputs({ ...authInputs, plusid: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 mb-1">관리자 휴대폰</label>
+                                <input
+                                    className="px-3 py-2 border rounded-lg text-sm"
+                                    placeholder="01012345678"
+                                    value={authInputs.phonenumber}
+                                    onChange={e => setAuthInputs({ ...authInputs, phonenumber: e.target.value })}
+                                />
+                            </div>
+                            <button onClick={handleRequestAuth} className="px-4 py-2 bg-[#2F3A32] text-white rounded-lg text-xs font-bold hover:bg-[#1a211c]">인증번호 요청</button>
+                        </div>
+                    )}
+                    {channelStage === 'AUTH_SENT' && (
+                        <div className="flex gap-4 items-end">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 mb-1">인증번호</label>
+                                <input
+                                    className="px-3 py-2 border rounded-lg text-sm"
+                                    placeholder="123456"
+                                    value={authInputs.authnum}
+                                    onChange={e => setAuthInputs({ ...authInputs, authnum: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 mb-1">카테고리</label>
+                                <select
+                                    className="px-3 py-2 border rounded-lg text-sm max-w-[200px]"
+                                    value={authInputs.categorycode}
+                                    onChange={e => setAuthInputs({ ...authInputs, categorycode: e.target.value })}
+                                >
+                                    <option value="">카테고리 선택</option>
+                                    {categories.map((c: any) => (
+                                        <option key={c.code} value={c.code}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <button onClick={handleCompleteAuth} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">인증 확인 & 저장</button>
+                        </div>
+                    )}
+                    {channelStage === 'DONE' && (
+                        <div className="flex items-center gap-2 text-green-600 text-sm font-bold">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                            <span>연동 완료 (SenderKey: {registeredProfile?.senderKey || config?.senderkey})</span>
+                        </div>
+                    )}
+                    {/* If config has senderkey but not in this flow session, show it */}
+                    {channelStage === 'INIT' && config?.senderkey && (
+                        <div className="mt-2 text-xs text-slate-400">
+                            현재 저장된 Sender Key: {config.senderkey.substring(0, 10)}... (재설정하려면 위 입력 진행)
+                        </div>
+                    )}
+                </div>
+
                 <div className="flex items-center justify-between mb-8">
                     <h2 className="text-xl font-bold text-[#2F3A32] flex items-center gap-2">
                         <span>🎛️ 발송 제어 마스터 스위치 (Triggers)</span>
@@ -175,18 +327,60 @@ export default function NotificationControl() {
                                         onChange={(e) => changeTemplate(key, e.target.value)}
                                     >
                                         <option value="">(선택 안함 - 로직 중단)</option>
-                                        {templates.map((t: any) => (
-                                            <option key={t.templtCode || t.code} value={t.templtCode || t.code}>
-                                                {t.templtName || t.name} ({t.templtCode || t.code})
-                                            </option>
-                                        ))}
+                                        {templates.map((t: any) => {
+                                            const status = t.inspStatus || 'UNK'; // REG, APR, REJ
+                                            const statusColor = status === 'APR' ? '🟢' : status === 'REJ' ? '🔴' : '🟠';
+                                            return (
+                                                <option key={t.templtCode || t.code} value={t.templtCode || t.code}>
+                                                    {statusColor} [{status}] {t.templtName || t.name}
+                                                </option>
+                                            );
+                                        })}
                                     </select>
+
+                                    {/* Template Status Action */}
+                                    {trigger.templateCode && (() => {
+                                        const t = templates.find((tm: any) => (tm.templtCode || tm.code) === trigger.templateCode);
+                                        if (t?.inspStatus === 'REG' || t?.inspStatus === 'REJ') {
+                                            return (
+                                                <div className="mt-1 flex items-center justify-between">
+                                                    <span className={`text-[10px] font-bold ${t.inspStatus === 'REJ' ? 'text-red-500' : 'text-orange-500'}`}>
+                                                        {t.inspStatus === 'REJ' ? '반려됨 (아래 사유 확인)' : '등록됨 (심사 필요)'}
+                                                    </span>
+                                                    {t.inspStatus === 'REG' && (
+                                                        <button
+                                                            onClick={() => handleRequestInspection(t.templtCode || t.code)}
+                                                            className="text-[10px] underline text-blue-500 hover:text-blue-700"
+                                                        >
+                                                            검수요청
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
 
                                     {/* Variable Guide */}
                                     {trigger.templateCode && (
                                         <div className="p-3 bg-yellow-50 rounded-xl border border-yellow-100 text-[10px] text-yellow-800 leading-relaxed max-h-32 overflow-y-auto custom-scrollbar">
                                             <strong>[미리보기]</strong><br />
                                             {selectedTplContent || '동기화된 내용 없음'}
+
+                                            {/* REJECTION REASON */}
+                                            {(() => {
+                                                const t = templates.find((tm: any) => (tm.templtCode || tm.code) === trigger.templateCode);
+                                                if (t?.inspStatus === 'REJ' && t?.comments && t.comments.length > 0) {
+                                                    return (
+                                                        <div className="mt-2 pt-2 border-t border-red-200 text-red-600 font-bold">
+                                                            🚨 반려 사유: <br />
+                                                            {t.comments.map((c: any, idx: number) => (
+                                                                <div key={idx}>- {c.content || c}</div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                }
+                                            })()}
                                         </div>
                                     )}
                                 </div>

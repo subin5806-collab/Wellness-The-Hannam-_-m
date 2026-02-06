@@ -9,13 +9,36 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Robust Aligo Config
-const ALIGO_CONFIG = {
-  key: process.env.ALIGO_APIKEY || process.env.VITE_ALIGO_APIKEY || 'wt1mir1bfax86lt0s8vu9bn47whjywb5',
-  user_id: process.env.ALIGO_USERID || process.env.VITE_ALIGO_USERID || 'modoofit',
-  senderkey: process.env.ALIGO_SENDERKEY || process.env.VITE_ALIGO_SENDERKEY || 'd40940367cfd584c22f0da0e7803be4d3e3785a4',
-  sender: process.env.ALIGO_SENDER || process.env.VITE_ALIGO_SENDER || '01000000000'
-};
+// Robust Aligo Config - FETCH FROM DB FIRST
+async function getAligoConfig() {
+  const defaults = {
+    key: process.env.ALIGO_APIKEY || process.env.VITE_ALIGO_APIKEY || 'wt1mir1bfax86lt0s8vu9bn47whjywb5',
+    user_id: process.env.ALIGO_USERID || process.env.VITE_ALIGO_USERID || 'modoofit',
+    senderkey: process.env.ALIGO_SENDERKEY || process.env.VITE_ALIGO_SENDERKEY || 'd40940367cfd584c22f0da0e7803be4d3e3785a4',
+    sender: process.env.ALIGO_SENDER || process.env.VITE_ALIGO_SENDER || '01000000000'
+  };
+
+  try {
+    const { data } = await supabase
+      .from('hannam_notices')
+      .select('content')
+      .eq('id', 'ALIMTALK_CONFIG')
+      .single();
+
+    if (data?.content) {
+      const dbConfig = JSON.parse(data.content);
+      return {
+        key: dbConfig.apikey || defaults.key,
+        user_id: dbConfig.userid || defaults.user_id,
+        senderkey: dbConfig.senderkey || defaults.senderkey,
+        sender: dbConfig.sender || defaults.sender
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to load ALIMTALK_CONFIG from DB, using env defaults');
+  }
+  return defaults;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -27,6 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!receiver || !message) {
     return res.status(400).json({ error: 'Missing receiver or message' });
   }
+
+  const ALIGO_CONFIG = await getAligoConfig();
 
   const endpoint = 'https://kakaoapi.aligo.in/akv10/alimtalk/send/';
 

@@ -21,6 +21,7 @@ const MemberRegistrationModal: React.FC<MemberRegistrationModalProps> = ({ onClo
     const [selectedProductId, setSelectedProductId] = useState<string>('');
     const [products, setProducts] = useState<MembershipProduct[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isSending, setIsSending] = useState(false);
 
     useEffect(() => {
         db.master.membershipProducts.getAll().then(setProducts).catch(console.error);

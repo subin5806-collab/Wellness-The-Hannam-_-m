@@ -32,6 +32,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             formData.append('tpl_content', params.tpl_content);
             // Optional buttons etc.
             break;
+        case 'request': // Request Inspection
+            endpoint = 'https://kakaoapi.aligo.in/akv10/template/request/';
+            formData.append('tpl_code', params.tpl_code);
+            break;
         case 'delete':
             endpoint = 'https://kakaoapi.aligo.in/akv10/template/del/';
             formData.append('tpl_code', params.tpl_code);

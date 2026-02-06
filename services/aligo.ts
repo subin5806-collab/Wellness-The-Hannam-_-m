@@ -28,12 +28,70 @@ export const AligoService = {
         }
     },
 
+    requestTemplate: async (code: string) => {
+        try {
+            const res = await fetch('/api/aligo/template', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'request', tpl_code: code })
+            });
+            return await res.json();
+        } catch (e) {
+            return { code: -99, message: 'Request Failed' };
+        }
+    },
+
     addTemplate: async (name: string, content: string) => {
         return { code: -1, success: false, message: 'Use Aligo Admin Console.' };
     },
 
     deleteTemplate: async (code: string) => {
         return { code: -1, success: false, message: 'Use Aligo Admin Console.' };
+    },
+
+    // 1.5 Channel Auth (Profile)
+    requestAuth: async (plusid: string, phonenumber: string) => {
+        try {
+            const res = await fetch('/api/aligo/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'auth', plusid, phonenumber })
+            });
+            return await res.json();
+        } catch (e) { return { code: -99, message: 'Auth Request Failed' }; }
+    },
+
+    getCategory: async () => {
+        try {
+            const res = await fetch('/api/aligo/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'category' })
+            });
+            return await res.json();
+        } catch (e) { return { code: -99, message: 'Category Load Failed' }; }
+    },
+
+    createProfile: async (plusid: string, authnum: string, phonenumber: string, categorycode: string) => {
+        try {
+            const res = await fetch('/api/aligo/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'add', plusid, authnum, phonenumber, categorycode })
+            });
+            return await res.json();
+        } catch (e) { return { code: -99, message: 'Profile Create Failed' }; }
+    },
+
+    getProfiles: async () => {
+        try {
+            const res = await fetch('/api/aligo/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'list' })
+            });
+            return await res.json();
+        } catch (e) { return { code: -99, message: 'List Failed' }; }
     },
 
     // 2. Send Direct Message (via Server Proxy)

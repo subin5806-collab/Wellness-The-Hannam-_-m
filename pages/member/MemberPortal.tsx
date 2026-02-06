@@ -101,6 +101,9 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
       const today = new Date().toISOString().split('T')[0];
       const filteredNotices = (fetchedNotices || []).filter(n => !n.isPopup || suppressedIds[n.id] !== today);
       setActiveNotices(filteredNotices);
+    } catch (err: any) {
+      console.error('[MemberPortal] Fetch Error:', err);
+      alert(`데이터를 불러오는 중 오류가 발생했습니다.\n${err.message || 'Unknown Error'}`);
     } finally { setIsLoading(false); }
   }, [memberId]);
 
@@ -185,8 +188,8 @@ const MemberPortal: React.FC<MemberPortalProps> = ({ memberId, onLogout }) => {
   const popupNotices = activeNotices.filter(n => n.isPopup);
 
   return (
-    <div className="min-h-screen bg-slate-100 flex justify-center pb-0 lg:pb-10 select-none">
-      <div className="w-full max-w-md flex flex-col relative overflow-hidden bg-[#F9F9F7] min-h-screen shadow-2xl">
+    <div className="min-h-screen min-h-[100dvh] bg-slate-100 flex justify-center pb-0 lg:pb-10 select-none">
+      <div className="w-full max-w-md flex flex-col relative overflow-hidden bg-[#F9F9F7] min-h-screen min-h-[100dvh] shadow-2xl">
 
         {/* Header */}
         <header className="px-8 pt-16 pb-6 flex justify-between items-center bg-[#F9F9F7] sticky top-0 z-40">
