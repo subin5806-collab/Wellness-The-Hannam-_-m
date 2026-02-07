@@ -136,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Find user by Phone Metadata or Phone field (Supabase stores normalized phone)
         // Our phone format: 01012345678. Supabase might hold +821012345678 or similar.
         // Or if we used email: 01012345678@...
-        const targetUser = userList.users.find(u => {
+        const targetUser = userList.users.find((u: any) => {
             const phoneMatch = u.phone === memberId || u.user_metadata?.phone === memberId || u.user_metadata?.full_phone === memberId;
             const emailMatch = u.email?.startsWith(memberId); // e.g. 01012345678@instructor...
             return phoneMatch || emailMatch;
