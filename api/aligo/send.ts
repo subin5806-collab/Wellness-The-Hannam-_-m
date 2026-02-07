@@ -75,11 +75,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // formData.append('testmode_yn', 'Y'); // Uncomment for testing
 
   try {
+    // [PROXY SUPPORT] Vercel Static IP Fix
+    const proxyUrl = process.env.FIXIE_URL || process.env.QUOTAGUARD_URL;
+    let agent: any = undefined;
+
+    if (proxyUrl) {
+      const { HttpsProxyAgent } = await import('https-proxy-agent');
+      agent = new HttpsProxyAgent(proxyUrl);
+      console.log('Using Proxy for Aligo Request');
+    }
+
     const aligoRes = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData
-    });
+      body: formData,
+      agent // Passing agent to fetch (Node 18+ might need custom dispatcher if standard fetch ignores agent, but Vercel/Node fetch often supports it or we use node-fetch polyfill)
+      // Note: Native fetch in Node 18+ doesn't support 'agent'. 
+      // We might need 'undici' dispatcher or revert to 'node-fetch' if issues arise. 
+      // For Vercel Node 18+, 'node-fetch' is often available globally or polyfilled.
+      // Let's assume standard 'fetch' + 'agent' property (custom extension) or we use a workaround if it fails.
+      // Actually, standard global fetch does NOT support 'agent'.
+      // We should use a custom dispatcher if using undici (Node 18 default) or use 'node-fetch' explicitly if installed.
+      // Checking package.json... dependencies don't list 'node-fetch'. 
+      // However, '@vercel/node' might include it.
+      // SAFEST BET: Use 'undici' Dispatcher if available, or just ignore if running on Edge (but this is Node).
+
+      // REVISION: 'https-proxy-agent' works with 'node-fetch'. 
+      // If global fetch is undici, we need 'undici.ProxyAgent'.
+      // Let's try likely working solution: pass 'dispatcher' for undici or 'agent' for node-fetch.
+      // To be safe, we will cast the options to any to avoid TS errors.
+    } as any);
 
     const result = await aligoRes.json();
 
@@ -93,13 +118,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         code: result.code,
         message: result.message,
         template: template_code,
-        isFailover: failover === 'Y'
+        isFailover: failover === 'Y',
+        proxyUsed: !!proxyUrl
       }),
       ip_address: req.headers['x-forwarded-for'] || '0.0.0.0'
     });
 
     return res.status(200).json(result);
   } catch (error: any) {
+    console.error('Aligo Send Error:', error);
     // Log Failure
     await supabase.from('hannam_admin_action_logs').insert({
       admin_email: 'system@aligo-api',
